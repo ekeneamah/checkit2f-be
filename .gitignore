@@ -39,3 +39,10 @@ coverage/
 .firebase/
 firebase-debug.log
 
+node_modules/.bin/css-beautify.ps1
+node_modules/.bin/create-jest.ps1
+node_modules/.bin/create-jest.ps1
+node_modules/.bin/node-gyp-build-optional.ps1
+node_modules/.bin/js-yaml
+dist/
+node_modules/.bin/baseline-browser-mapping

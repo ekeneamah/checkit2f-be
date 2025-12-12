@@ -13,6 +13,9 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/
 import { Public } from '../../../auth/decorators/public.decorator';
 import { RequestTypeConfigRepository } from '../../infrastructure/repositories/request-type-config.repository';
 import { RequestTypePricingService } from '../../application/services/request-type-pricing.service';
+import { LocationPricingService } from '../../application/services/location-pricing.service';
+import { RequestTypeSeederService } from '../../application/services/seeders/request-type.seeder';
+import { LocationPricingSeederService } from '../../application/services/seeders/location-pricing.seeder';
 import { CalculatePriceDto, PriceCalculationResponseDto } from '../dto/calculate-price.dto';
 import { QueryRequestTypesDto } from '../dto/query-request-types.dto';
 import { IRequestTypeConfig } from '../../domain/interfaces/request-type-config.interface';
@@ -30,6 +33,9 @@ export class PricingController {
   constructor(
     private readonly repository: RequestTypeConfigRepository,
     private readonly pricingService: RequestTypePricingService,
+    private readonly locationPricingService: LocationPricingService,
+    private readonly requestTypeSeeder: RequestTypeSeederService,
+    private readonly locationPricingSeeder: LocationPricingSeederService,
   ) {}
 
   /**
@@ -198,15 +204,41 @@ export class PricingController {
   async calculatePrice(
     @Body() dto: CalculatePriceDto,
   ): Promise<PriceCalculationResponseDto> {
-    // Get request type
-    const requestType = await this.repository.findByIdOrFail(
+    // Get request type by name (not ID)
+    const requestType = await this.repository.findByName(
       dto.requestTypeId,
     );
+
+    if (!requestType) {
+      throw new NotFoundException(`Request type not found: ${dto.requestTypeId}`);
+    }
 
     if (!requestType.isActive) {
       throw new NotFoundException(
         `Request type "${requestType.displayName}" is not currently available`,
       );
+    }
+
+    // For standard_verification, use location-based pricing if city/area provided
+    let locationBasedPrice = null;
+    let pricingSource = 'request_type';
+    
+    if (requestType.name === 'standard_verification' && dto.city) {
+      try {
+        const locationPricing = await this.locationPricingService.calculateLocationPrice(dto.city, dto.area);
+        
+        // Use area price if available, otherwise city price (location service returns prices in Naira)
+        if (locationPricing.pricingSource === 'exact_match' && locationPricing.areaCost > 0) {
+          locationBasedPrice = locationPricing.areaCost; // Already in Naira
+          pricingSource = `location_area_${locationPricing.pricingSource}`;
+        } else {
+          locationBasedPrice = locationPricing.cityCost; // Already in Naira  
+          pricingSource = `location_city_${locationPricing.pricingSource}`;
+        }
+      } catch (error) {
+        // Fallback to request type base price if location pricing fails
+        console.warn(`Location pricing failed, using base price: ${error.message}`);
+      }
     }
 
     // Build calculation parameters based on pricing type
@@ -216,9 +248,17 @@ export class PricingController {
       selectedTier: dto.tier ? `TIER_${dto.tier}` : undefined,
     };
 
-    // Calculate base price
+    // Calculate base price using request type pricing
     let baseResult = this.pricingService.calculatePrice(requestType, params);
     let finalResult = baseResult;
+    
+    // Override with location-based pricing if available
+    if (locationBasedPrice !== null && pricingSource.startsWith('location_')) {
+      finalResult = {
+        ...baseResult,
+        totalPrice: locationBasedPrice * 100, // Convert location price to kobo for internal consistency
+      };
+    }
 
     // Apply urgent pricing if requested
     if (dto.isUrgent && requestType.allowScheduling) {
@@ -244,12 +284,24 @@ export class PricingController {
     }
 
     // Build response breakdown
-    const breakdown: { description: string; amount: number }[] = [
-      {
+    const breakdown: { description: string; amount: number }[] = [];
+    
+    if (locationBasedPrice !== null && pricingSource.startsWith('location_')) {
+      // Use location-based pricing description
+      const locationDescription = pricingSource.includes('area') 
+        ? `Area-specific pricing (${dto.area}, ${dto.city})`
+        : `City pricing (${dto.city})`;
+      breakdown.push({
+        description: locationDescription,
+        amount: finalResult.totalPrice, // Already in kobo
+      });
+    } else {
+      // Use standard request type pricing
+      breakdown.push({
         description: `Base price (${requestType.displayName})`,
-        amount: baseResult.totalPrice / 100, // Convert kobo to naira
-      },
-    ];
+        amount: baseResult.totalPrice, // Already in kobo
+      });
+    }
 
     if (finalResult.premiumMultiplier) {
       const urgentFee = finalResult.totalPrice - baseResult.totalPrice;
@@ -269,17 +321,63 @@ export class PricingController {
     return {
       requestTypeId: requestType.id,
       requestTypeName: requestType.displayName,
-      basePrice: baseResult.totalPrice / 100, // Convert to naira
+      basePrice: finalResult.totalPrice / 100, // Convert to naira for display
       urgentFee: finalResult.premiumMultiplier
         ? (finalResult.totalPrice - baseResult.totalPrice) / 100
         : undefined,
       recurringDiscount: finalResult.discount
         ? finalResult.discount / 100
         : undefined,
-      totalPrice: finalResult.totalPrice / 100, // Convert to naira
+      totalPrice: finalResult.totalPrice / 100, // Convert to naira for display
       currency: requestType.currency,
-      breakdown,
+      breakdown: breakdown.map(item => ({
+        ...item,
+        amount: item.amount / 100, // Convert breakdown amounts to naira
+      })),
       calculatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Seed default data (request types and location pricing)
+   * POST /api/v1/pricing/seed-defaults
+   */
+  @Public()
+  @Post('seed-defaults')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ 
+    summary: 'Seed default data (Development only)',
+    description: 'Initialize the database with default request types and location pricing. Public endpoint for development setup.' 
+  })
+  @ApiResponse({ status: 201, description: 'Default data seeded successfully' })
+  async seedDefaults(): Promise<{ message: string; requestTypes: number; locationPricing: number }> {
+    let requestTypesSeeded = 0;
+    let locationPricingSeeded = 0;
+    
+    // Seed request types
+    try {
+      await this.requestTypeSeeder.seedPhase1();
+      requestTypesSeeded = 6;
+    } catch (error) {
+      if (!error.message?.includes('already exist')) {
+        throw error;
+      }
+    }
+    
+    // Seed location pricing
+    try {
+      await this.locationPricingSeeder.seedInitialPricing();
+      locationPricingSeeded = 25; // Updated count with Akure and Enugu
+    } catch (error) {
+      if (!error.message?.includes('already exist')) {
+        throw error;
+      }
+    }
+    
+    return {
+      message: 'Successfully seeded default request types and location pricing',
+      requestTypes: requestTypesSeeded,
+      locationPricing: locationPricingSeeded,
     };
   }
 }

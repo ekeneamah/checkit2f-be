@@ -58,6 +58,14 @@ export class CalculatePriceDto {
   @IsNumber()
   @Min(0)
   tier?: number; // For tiered pricing, tier index
+
+  @IsOptional()
+  @IsString()
+  city?: string; // City for location-based pricing
+
+  @IsOptional()
+  @IsString()
+  area?: string; // Area for location-based pricing
 }
 
 /**

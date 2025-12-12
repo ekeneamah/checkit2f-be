@@ -55,6 +55,40 @@ export class MapRouterController {
   }
 
   /**
+   * Extract city and area from search query using Gemini AI
+   */
+  @Public()
+  @Post('extract')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Extract city and area from search query',
+    description: 'Uses Gemini AI to extract city and area information from a search query before performing the actual search',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Extraction completed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', example: 'PLACES_TEXT_SEARCH' },
+        allow_manual_pin: { type: 'boolean', example: false },
+        city: { type: 'string', example: 'Lagos', nullable: true },
+        area: { type: 'string', example: 'Victoria Island', nullable: true }
+      }
+    }
+  })
+  @ApiBadRequestResponse({ description: 'Invalid search query' })
+  async extractCityArea(@Body() body: { query: string }): Promise<{
+    action: string;
+    allow_manual_pin: boolean;
+    city: string | null;
+    area: string | null;
+  }> {
+    this.logger.log(`Extracting city/area for: "${body.query}"`);
+    return await this.mapRouterService.extractCityArea(body.query);
+  }
+
+  /**
    * Create a manual pin location
    */
   @Public()

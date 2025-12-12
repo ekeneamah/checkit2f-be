@@ -25,6 +25,15 @@ export class SearchQueryDto {
   @IsOptional()
   @IsNumber()
   lng?: number;
+
+  @ApiPropertyOptional({
+    description: 'Verification type selected by user (pill)',
+    example: 'BUSINESS_VERIFICATION',
+    enum: ['BUSINESS_VERIFICATION', 'PROPERTY_INSPECTION', 'KYC_VERIFICATION', 'SITE_SURVEY', 'CUSTOM'],
+  })
+  @IsOptional()
+  @IsString()
+  verificationType?: string;
 }
 
 export class ManualPinDto {
@@ -79,6 +88,12 @@ export class SearchResultDto {
   @ApiProperty({ description: 'Formatted address' })
   formatted_address: string;
 
+  @ApiPropertyOptional({ description: 'City name extracted from address' })
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'Area/neighborhood extracted from address' })
+  area?: string;
+
   @ApiProperty({ description: 'Latitude' })
   lat: number;
 
@@ -101,6 +116,33 @@ export class SearchResultDto {
   popularity_score?: number;
 }
 
+export class PriceCalculationDto {
+  @ApiProperty({ description: 'City name', example: 'Lagos' })
+  city: string;
+
+  @ApiPropertyOptional({ description: 'Area/neighborhood name', example: 'Victoria Island' })
+  area?: string | null;
+
+  @ApiProperty({ description: 'Base cost for the city in Naira', example: 5000 })
+  cityCost: number;
+
+  @ApiProperty({ description: 'Additional cost for the area in Naira', example: 2000 })
+  areaCost: number;
+
+  @ApiProperty({ description: 'Total cost in Naira', example: 7000 })
+  totalCost: number;
+
+  @ApiProperty({ 
+    description: 'Source of pricing calculation',
+    enum: ['exact_match', 'city_fallback', 'default'],
+    example: 'exact_match'
+  })
+  pricingSource: string;
+
+  @ApiPropertyOptional({ description: 'ID of applied pricing configuration' })
+  appliedPricingId?: string;
+}
+
 export class RouterResponseDto {
   @ApiProperty({
     description: 'Action determined by GPT-4.1 router',
@@ -113,6 +155,24 @@ export class RouterResponseDto {
 
   @ApiPropertyOptional({ description: 'Whether to allow manual pin option' })
   allow_manual_pin?: boolean;
+
+  @ApiPropertyOptional({ 
+    description: 'Extracted city from search query',
+    example: 'Lagos'
+  })
+  city?: string | null;
+
+  @ApiPropertyOptional({ 
+    description: 'Extracted area/neighborhood from search query',
+    example: 'Victoria Island'
+  })
+  area?: string | null;
+
+  @ApiPropertyOptional({ 
+    description: 'Pricing calculation for the extracted location',
+    type: PriceCalculationDto
+  })
+  pricing?: PriceCalculationDto;
 
   @ApiProperty({
     description: 'Search results from Google APIs',

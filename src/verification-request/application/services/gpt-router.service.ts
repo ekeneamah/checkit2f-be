@@ -48,7 +48,7 @@ export class GptRouterService {
       this.logger.log(`Routing query: "${request.query}" (GPS: ${request.hasGPS})`);
 
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview', // Using GPT-4 Turbo as GPT-4.1 alias
+        model: 'gpt-4.1', // Using GPT-4.1
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

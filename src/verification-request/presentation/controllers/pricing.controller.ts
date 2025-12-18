@@ -17,9 +17,11 @@ import { LocationPricingService } from '../../application/services/location-pric
 import { RequestTypeSeederService } from '../../application/services/seeders/request-type.seeder';
 import { LocationPricingSeederService } from '../../application/services/seeders/location-pricing.seeder';
 import { CalculatePriceDto, PriceCalculationResponseDto } from '../dto/calculate-price.dto';
+import { CalculatePriceV2Dto } from '@verification-request/presentation/dto/calculate-price-v2.dto';
 import { QueryRequestTypesDto } from '../dto/query-request-types.dto';
 import { IRequestTypeConfig } from '../../domain/interfaces/request-type-config.interface';
 import { RecurringScheduleVO } from '../../domain/value-objects/recurring-schedule.value-object';
+import { PricingCalculationService } from '../../application/services/pricing-calculation.service';
 
 /**
  * Public Pricing Controller
@@ -36,6 +38,7 @@ export class PricingController {
     private readonly locationPricingService: LocationPricingService,
     private readonly requestTypeSeeder: RequestTypeSeederService,
     private readonly locationPricingSeeder: LocationPricingSeederService,
+    private readonly pricingCalculationService: PricingCalculationService,
   ) {}
 
   /**
@@ -336,6 +339,41 @@ export class PricingController {
       })),
       calculatedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Calculate price (v2) using 12-step pipeline
+   * POST /api/pricing/calculate-v2
+   */
+  @Post('calculate-v2')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Calculate price (v2)',
+    description: 'Runs the comprehensive 12-step pricing pipeline with breakdown and savings.'
+  })
+  @ApiResponse({ status: 200, description: 'Price calculated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid request parameters' })
+  async calculatePriceV2(
+    @Body() dto: CalculatePriceV2Dto,
+  ) {
+    const result = await this.pricingCalculationService.calculatePrice({
+      requestTypeId: dto.requestTypeId,
+      locationCount: dto.locationCount,
+      radiusKm: dto.radiusKm,
+      areaKm2: dto.areaKm2,
+      distanceKm: dto.distanceKm,
+      city: dto.city,
+      area: dto.area,
+      urgency: dto.urgency,
+      difficulty: dto.difficulty,
+      mode: dto.mode,
+      scheduledDate: dto.scheduledDate ? new Date(dto.scheduledDate) : undefined,
+      isRecurring: dto.isRecurring,
+      recurringCount: dto.recurringCount,
+      customerTier: dto.customerTier,
+      promotionalCode: dto.promotionalCode,
+    });
+    return result;
   }
 
   /**

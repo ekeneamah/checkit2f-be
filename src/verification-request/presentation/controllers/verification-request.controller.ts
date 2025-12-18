@@ -65,13 +65,15 @@ export class VerificationRequestController {
 
   /**
    * Create a new verification request
+   * PUBLIC: Allows unauthenticated users to proceed to payment
+   * Authenticated users will have their ID attached; unauthenticated will be assigned temp ID
    */
-  @Auth()
+  @Public()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create verification request',
-    description: 'Create a new verification request with location, type, and pricing details',
+    description: 'Create a new verification request with location, type, and pricing details. Authentication optional—unauthenticated users can continue to payment and authenticate later.',
   })
   @ApiCreatedResponse({
     description: 'Verification request created successfully',
@@ -80,12 +82,15 @@ export class VerificationRequestController {
   @ApiBadRequestResponse({ description: 'Invalid request data' })
   async createVerificationRequest(
     @Body() createDto: CreateVerificationRequestDto,
-    @CurrentUser('id') clientId: string,
+    @CurrentUser('id') clientId?: string,
+    @Request() req?: any,
   ): Promise<VerificationRequestResponseDto> {
     try {
-      this.logger.log(`Creating verification request for client: ${clientId}`);
+      // Use authenticated user ID, or generate temporary ID for unauthenticated users
+      const userId = clientId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      this.logger.log(`Creating verification request for ${clientId ? 'authenticated user' : 'unauthenticated user'}: ${userId}`);
 
-      const verificationRequest = await this.createUseCase.execute(clientId, createDto);
+      const verificationRequest = await this.createUseCase.execute(userId, createDto);
 
       return this.mapToResponse(verificationRequest);
     } catch (error) {

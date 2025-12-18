@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PaymentController } from './payment.controller';
 import { PaymentGatewayService } from './payment-gateway.service';
@@ -32,7 +32,7 @@ import { VerificationRequestModule } from '../../verification-request/verificati
 @Module({
   imports: [
     ConfigModule, // For accessing environment variables
-    VerificationRequestModule, // For accessing verification request repository
+    forwardRef(() => VerificationRequestModule), // Access repository with circular-safe import
   ],
   controllers: [
     PaymentController,

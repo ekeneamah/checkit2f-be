@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, Max, IsBoolean, IsArray, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, Max, IsBoolean, IsArray, IsDateString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VerificationTypeEnum, VerificationUrgency } from '../../domain';
 
@@ -141,12 +142,16 @@ export class CreateVerificationRequestDto {
     description: 'Verification type details',
     type: VerificationTypeDto,
   })
+  @ValidateNested()
+  @Type(() => VerificationTypeDto)
   verificationType: VerificationTypeDto;
 
   @ApiProperty({
     description: 'Location details for the verification',
     type: LocationDto,
   })
+  @ValidateNested()
+  @Type(() => LocationDto)
   location: LocationDto;
 
   @ApiPropertyOptional({
@@ -210,6 +215,8 @@ export class UpdateVerificationRequestDto {
     description: 'Updated verification type details',
     type: VerificationTypeDto,
   })
+  @ValidateNested()
+  @Type(() => VerificationTypeDto)
   @IsOptional()
   verificationType?: VerificationTypeDto;
 
@@ -217,6 +224,8 @@ export class UpdateVerificationRequestDto {
     description: 'Updated location details',
     type: LocationDto,
   })
+  @ValidateNested()
+  @Type(() => LocationDto)
   @IsOptional()
   location?: LocationDto;
 

@@ -1,7 +1,7 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, Max, IsBoolean, IsArray, IsDateString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { VerificationTypeEnum, VerificationUrgency } from '../../domain';
+import { VerificationTypeEnum, VerificationUrgency, RejectionReason } from '../../domain';
 
 /**
  * Location DTO for verification requests
@@ -115,6 +115,29 @@ export class VerificationTypeDto {
 }
 
 /**
+ * Price DTO for verification requests
+ */
+export class PriceDto {
+  @ApiProperty({
+    description: 'Price amount',
+    example: 5000,
+    minimum: 0,
+  })
+  @IsNumber()
+  @Min(0)
+  amount: number;
+
+  @ApiPropertyOptional({
+    description: 'Currency code (defaults to NGN)',
+    example: 'NGN',
+    default: 'NGN',
+  })
+  @IsString()
+  @IsOptional()
+  currency?: string;
+}
+
+/**
  * Create verification request DTO
  */
 export class CreateVerificationRequestDto {
@@ -187,6 +210,15 @@ export class CreateVerificationRequestDto {
   @IsString()
   @IsOptional()
   paymentReference?: string;
+
+  @ApiPropertyOptional({
+    description: 'Price details (amount and currency). If not provided, will be calculated from verification type.',
+    example: { amount: 5000, currency: 'NGN' },
+  })
+  @ValidateNested()
+  @Type(() => PriceDto)
+  @IsOptional()
+  price?: PriceDto;
 }
 
 /**
@@ -348,6 +380,35 @@ export class VerificationRequestResponseDto {
   })
   paymentStatus: string;
 
+  @ApiPropertyOptional({
+    description: 'Customer response status',
+    example: 'ACCEPTED',
+    enum: ['ACCEPTED', 'REJECTED'],
+  })
+  customerResponseStatus?: string;
+
+  @ApiPropertyOptional({
+    description: 'Customer response date',
+    example: '2024-01-22T16:00:00Z',
+  })
+  customerResponseDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Rejection details if customer rejected',
+    example: {
+      reason: 'INCORRECT_LOCATION',
+      notes: 'The verification was done at wrong address',
+      rejectedAt: '2024-01-22T16:00:00Z',
+      rejectedBy: 'user_1234567890abcdef',
+    },
+  })
+  rejectionDetails?: {
+    reason: string;
+    notes: string;
+    rejectedAt: string;
+    rejectedBy: string;
+  };
+
   @ApiProperty({
     description: 'Request creation date',
     example: '2024-01-15T10:00:00Z',
@@ -464,4 +525,26 @@ export class VerificationRequestQueryDto {
   @IsString()
   @IsOptional()
   sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Customer reject verification DTO
+ */
+export class CustomerRejectVerificationDto {
+  @ApiProperty({
+    description: 'Reason for rejecting the verification',
+    enum: RejectionReason,
+    example: RejectionReason.INCORRECT_LOCATION,
+  })
+  @IsEnum(RejectionReason)
+  reason: RejectionReason;
+
+  @ApiProperty({
+    description: 'Additional notes explaining the rejection (required if reason is OTHER, optional otherwise)',
+    example: 'The location verified does not match the address I provided. Please re-verify.',
+    maxLength: 500,
+  })
+  @IsString()
+  @IsNotEmpty()
+  notes: string;
 }

@@ -1,7 +1,7 @@
-import { Injectable, Inject, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { VerificationRequest } from '../../domain';
+import { Injectable, Inject, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { VerificationRequest, RejectionDetails } from '../../domain';
 import { IVerificationRequestRepository } from '../interfaces/verification-request.repository.interface';
-import { AssignAgentDto, ChangeStatusDto } from '../dtos/verification-request.dto';
+import { AssignAgentDto, ChangeStatusDto, CustomerRejectVerificationDto } from '../dtos/verification-request.dto';
 
 /**
  * Use case for updating verification requests
@@ -208,6 +208,73 @@ export class UpdateVerificationRequestUseCase {
 
     } catch (error) {
       this.logger.error(`Failed to update notes for request ${requestId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Customer accepts the verification result
+   */
+  async acceptByCustomer(requestId: string, clientId: string): Promise<VerificationRequest> {
+    try {
+      this.logger.log(`Customer ${clientId} accepting verification request: ${requestId}`);
+
+      const request = await this.repository.findById(requestId);
+      if (!request) {
+        throw new NotFoundException(`Verification request with ID ${requestId} not found`);
+      }
+
+      // Verify the customer owns this request
+      if (request.clientId !== clientId) {
+        throw new ForbiddenException('You can only respond to your own verification requests');
+      }
+
+      // Accept using domain logic
+      request.acceptByCustomer();
+
+      // Save updated request
+      const updatedRequest = await this.repository.save(request);
+      
+      this.logger.log(`Verification accepted successfully by customer for request: ${requestId}`);
+      return updatedRequest;
+
+    } catch (error) {
+      this.logger.error(`Failed to accept verification for request ${requestId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Customer rejects the verification result
+   */
+  async rejectByCustomer(requestId: string, clientId: string, dto: CustomerRejectVerificationDto): Promise<VerificationRequest> {
+    try {
+      this.logger.log(`Customer ${clientId} rejecting verification request: ${requestId} with reason: ${dto.reason}`);
+
+      const request = await this.repository.findById(requestId);
+      if (!request) {
+        throw new NotFoundException(`Verification request with ID ${requestId} not found`);
+      }
+
+      // Verify the customer owns this request
+      if (request.clientId !== clientId) {
+        throw new ForbiddenException('You can only respond to your own verification requests');
+      }
+
+      // Create rejection details
+      const rejectionDetails = new RejectionDetails(dto.reason, dto.notes, clientId);
+
+      // Reject using domain logic
+      request.rejectByCustomer(rejectionDetails);
+
+      // Save updated request
+      const updatedRequest = await this.repository.save(request);
+      
+      this.logger.log(`Verification rejected successfully by customer for request: ${requestId}`);
+      return updatedRequest;
+
+    } catch (error) {
+      this.logger.error(`Failed to reject verification for request ${requestId}: ${error.message}`);
       throw error;
     }
   }

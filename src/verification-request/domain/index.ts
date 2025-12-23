@@ -14,3 +14,7 @@ export {
   VerificationStatus, 
   VerificationRequestStatus 
 } from './value-objects/verification-status.value-object';
+export { 
+  RejectionReason, 
+  RejectionDetails 
+} from './value-objects/rejection-reason.value-object';

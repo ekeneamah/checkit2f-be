@@ -28,6 +28,7 @@ import {
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { Public } from '../../auth/decorators/public.decorator';
 import { PaymentGatewayService } from './payment-gateway.service';
 import {
   CreateCustomerDto,
@@ -53,9 +54,11 @@ import {
   ISubscriptionResult,
   IInvoice,
   IWebhookValidation,
+  IWebhookEvent,
   IPaymentAnalytics,
   IServiceHealth,
   PaymentProvider,
+  WebhookEvent,
 } from './interfaces/payment.interface';
 
 /**
@@ -446,6 +449,7 @@ export class PaymentController {
   // Webhook Endpoints
   // ============================================================================
 
+  @Public()
   @Post('webhooks/stripe')
   @ApiOperation({ 
     summary: 'Handle Stripe webhook',
@@ -484,6 +488,7 @@ export class PaymentController {
     }
   }
 
+  @Public()
   @Post('webhooks/paystack')
   @ApiOperation({ 
     summary: 'Handle Paystack webhook',
@@ -519,6 +524,74 @@ export class PaymentController {
     } catch (error) {
       this.logger.error(`Failed to process Paystack webhook: ${error.message}`);
       throw new BadRequestException('Webhook processing failed');
+    }
+  }
+
+  // ============================================================================
+  // Payment Verification (Fallback when webhook fails)
+  // ============================================================================
+
+  @Public()
+  @Get('payments/verify/:reference')
+  @ApiOperation({ 
+    summary: 'Verify payment status',
+    description: 'Verify payment with Paystack as fallback when webhook fails. This endpoint manually checks payment status and updates the request.',
+  })
+  @ApiParam({ name: 'reference', description: 'Payment reference' })
+  @ApiResponse({ status: 200, description: 'Payment verified successfully' })
+  @ApiResponse({ status: 404, description: 'Payment not found' })
+  @HttpCode(HttpStatus.OK)
+  async verifyPayment(@Param('reference') reference: string): Promise<{ 
+    status: string; 
+    message: string;
+    data?: any;
+  }> {
+    this.logger.log(`Verifying payment: ${reference}`);
+    
+    try {
+      // Call Paystack to verify the transaction
+      const paystackResponse = await fetch(
+        `https://api.paystack.co/transaction/verify/${reference}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${this.configService.get('PAYSTACK_SECRET_KEY')}`,
+          },
+        }
+      );
+
+      const result = await paystackResponse.json();
+
+      if (!result.status || !result.data) {
+        throw new BadRequestException('Payment verification failed');
+      }
+
+      // If payment was successful, trigger the webhook handler manually
+      if (result.data.status === 'success') {
+        this.logger.log(`Payment ${reference} verified as successful, processing...`);
+        
+        // Create a properly structured webhook event
+        const webhookEvent: IWebhookEvent = {
+          id: result.data.id || reference,
+          type: WebhookEvent.PAYMENT_SUCCEEDED,
+          data: result.data,
+          provider: PaymentProvider.PAYSTACK,
+          signature: 'manual-verification',
+          createdAt: new Date(),
+        };
+
+        // Process the payment through the webhook handler
+        await this.paymentService.handleWebhookEvent(webhookEvent);
+      }
+
+      return {
+        status: result.data.status,
+        message: result.message,
+        data: result.data,
+      };
+    } catch (error) {
+      this.logger.error(`Payment verification error: ${error.message}`);
+      throw new BadRequestException(`Payment verification failed: ${error.message}`);
     }
   }
 

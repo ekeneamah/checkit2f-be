@@ -52,6 +52,7 @@ export class FirebaseService {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge });
 
+      
       this.logger.log(`Document set with ID: ${id}`);
 
     } catch (error) {

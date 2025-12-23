@@ -1122,11 +1122,22 @@ export class PaystackService implements IPaymentService {
     try {
       this.logger.log(`💳 Payment succeeded: ${data.reference}`);
       
-      // Find pending verification request by payment reference
-      const request = await this.verificationRequestRepository.findByPaymentReference(data.reference);
+      // Try to find verification request by payment reference first
+      let request = await this.verificationRequestRepository.findByPaymentReference(data.reference);
+      
+      // If not found by reference, try to find by requestId from metadata
+      if (!request && data.metadata?.requestId) {
+        this.logger.log(`🔍 Looking for request by ID from metadata: ${data.metadata.requestId}`);
+        request = await this.verificationRequestRepository.findById(data.metadata.requestId);
+        
+        if (request) {
+          // Update the payment reference on the request
+          this.logger.log(`📝 Setting payment reference ${data.reference} on request ${request.id}`);
+        }
+      }
       
       if (!request) {
-        this.logger.warn(`⚠️ No verification request found for payment reference: ${data.reference}`);
+        this.logger.warn(`⚠️ No verification request found for payment reference: ${data.reference} or requestId: ${data.metadata?.requestId}`);
         return;
       }
 

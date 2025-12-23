@@ -22,6 +22,8 @@ import { QueryRequestTypesDto } from '../dto/query-request-types.dto';
 import { IRequestTypeConfig } from '../../domain/interfaces/request-type-config.interface';
 import { RecurringScheduleVO } from '../../domain/value-objects/recurring-schedule.value-object';
 import { PricingCalculationService } from '../../application/services/pricing-calculation.service';
+import { IntentRouterService } from '../../application/services/intent-router.service';
+import { IntentSuggestDto, IntentSuggestResponseDto } from '../dto/intent-suggest.dto';
 
 /**
  * Public Pricing Controller
@@ -39,6 +41,7 @@ export class PricingController {
     private readonly requestTypeSeeder: RequestTypeSeederService,
     private readonly locationPricingSeeder: LocationPricingSeederService,
     private readonly pricingCalculationService: PricingCalculationService,
+    private readonly intentRouter: IntentRouterService,
   ) {}
 
   /**
@@ -144,6 +147,48 @@ export class PricingController {
     }
 
     return requestType;
+  }
+
+  /**
+   * Suggest pricing model from natural language input and return price estimate
+   * POST /api/pricing/intent
+   */
+  @Post('intent')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Suggest pricing model from natural language query', 
+    description: 'Analyzes free text to detect intent, suggest appropriate pricing model, and calculate estimate'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Intent detected and price calculated successfully',
+    type: IntentSuggestResponseDto 
+  })
+  async suggestFromIntent(@Body() dto: IntentSuggestDto): Promise<IntentSuggestResponseDto> {
+    const locationContext = dto.location ? {
+      latitude: dto.location.latitude,
+      longitude: dto.location.longitude,
+      radiusKm: dto.location.radiusKm || 5,
+    } : undefined;
+
+    const result = await this.intentRouter.suggestAndPrice(dto.queryText, locationContext);
+    
+    return {
+      intent: {
+        requestType: result.intent.requestTypeName,
+        pricingModel: String(result.intent.pricingType),
+        reason: result.intent.reason,
+        parameters: result.intent.params,
+      },
+      priceEstimate: {
+        basePrice: result.price.basePrice,
+        totalPrice: result.price.totalPrice,
+        currency: result.price.currency || 'NGN',
+        breakdown: Array.isArray(result.price.breakdown) 
+          ? result.price.breakdown 
+          : [],
+      },
+    };
   }
 
   /**

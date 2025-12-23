@@ -12,6 +12,7 @@ import { CommonModule } from './common/common.module';
 import { FirebaseModule } from './shared/config/firebase.module';
 import { AuthModule } from './auth/auth.module';
 import { ExternalServicesModule } from './external-services/external-services.module';
+import { AgentModule } from './agent/agent.module';
 import { HealthController } from './health/health.controller';
 
 import { validateEnvironmentConfig } from './config/env.validation';
@@ -67,6 +68,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     // Feature modules
     VerificationRequestModule,
     UserModule,
+    AgentModule,
     PaymentModule,
     NotificationModule,
   ],

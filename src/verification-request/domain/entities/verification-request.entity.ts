@@ -3,6 +3,7 @@ import { Location } from '../value-objects/location.value-object';
 import { Price } from '../value-objects/price.value-object';
 import { VerificationType } from '../value-objects/verification-type.value-object';
 import { VerificationStatus } from '../value-objects/verification-status.value-object';
+import { RejectionDetails } from '../value-objects/rejection-reason.value-object';
 
 /**
  * VerificationRequest domain entity
@@ -26,6 +27,9 @@ export class VerificationRequest extends BaseEntity {
   private _paymentReference?: string;
   private _paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   private _statusHistory: VerificationStatus[];
+  private _customerResponseStatus?: 'ACCEPTED' | 'REJECTED';
+  private _customerResponseDate?: Date;
+  private _rejectionDetails?: RejectionDetails;
 
   constructor(
     clientId: string,
@@ -123,6 +127,18 @@ export class VerificationRequest extends BaseEntity {
 
   get statusHistory(): VerificationStatus[] {
     return [...this._statusHistory];
+  }
+
+  get customerResponseStatus(): 'ACCEPTED' | 'REJECTED' | undefined {
+    return this._customerResponseStatus;
+  }
+
+  get customerResponseDate(): Date | undefined {
+    return this._customerResponseDate;
+  }
+
+  get rejectionDetails(): RejectionDetails | undefined {
+    return this._rejectionDetails;
   }
 
   /**
@@ -261,11 +277,50 @@ export class VerificationRequest extends BaseEntity {
   }
 
   /**
-   * Reject verification request
+   * Reject verification request (admin/system)
    */
   public reject(reason: string, rejectedBy?: string): void {
     this.changeStatus(VerificationStatus.createRejected(reason, rejectedBy));
     console.log(`Verification rejected for request: ${this.id}. Reason: ${reason}`);
+  }
+
+  /**
+   * Customer accepts the verification result
+   */
+  public acceptByCustomer(): void {
+    if (this._status.status !== 'COMPLETED') {
+      throw new Error('Can only accept completed verifications');
+    }
+
+    if (this._customerResponseStatus) {
+      throw new Error('Customer has already responded to this verification');
+    }
+
+    this._customerResponseStatus = 'ACCEPTED';
+    this._customerResponseDate = new Date();
+    this.updateModified();
+    
+    console.log(`Customer accepted verification request: ${this.id}`);
+  }
+
+  /**
+   * Customer rejects the verification result
+   */
+  public rejectByCustomer(rejectionDetails: RejectionDetails): void {
+    if (this._status.status !== 'COMPLETED') {
+      throw new Error('Can only reject completed verifications');
+    }
+
+    if (this._customerResponseStatus) {
+      throw new Error('Customer has already responded to this verification');
+    }
+
+    this._customerResponseStatus = 'REJECTED';
+    this._customerResponseDate = new Date();
+    this._rejectionDetails = rejectionDetails;
+    this.updateModified();
+    
+    console.log(`Customer rejected verification request: ${this.id}. Reason: ${rejectionDetails.reason}`);
   }
 
   /**
@@ -398,6 +453,9 @@ export class VerificationRequest extends BaseEntity {
       paymentReference: this._paymentReference,
       paymentStatus: this._paymentStatus,
       statusHistory: this._statusHistory.map(status => status.toJSON()),
+      customerResponseStatus: this._customerResponseStatus,
+      customerResponseDate: this._customerResponseDate?.toISOString(),
+      rejectionDetails: this._rejectionDetails?.toJSON(),
     };
   }
 
@@ -429,6 +487,15 @@ export class VerificationRequest extends BaseEntity {
     request._paymentReference = data.paymentReference;
     request._paymentStatus = data.paymentStatus || 'pending';
     request._statusHistory = data.statusHistory?.map((s: any) => VerificationStatus.fromJSON(s)) || [];
+    request._customerResponseStatus = data.customerResponseStatus;
+    request._customerResponseDate = data.customerResponseDate ? new Date(data.customerResponseDate) : undefined;
+    if (data.rejectionDetails) {
+      request._rejectionDetails = new RejectionDetails(
+        data.rejectionDetails.reason,
+        data.rejectionDetails.notes,
+        data.rejectionDetails.rejectedBy
+      );
+    }
 
     return request;
   }

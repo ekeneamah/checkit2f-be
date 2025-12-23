@@ -34,6 +34,7 @@ import {
   VerificationRequestQueryDto,
   AssignAgentDto,
   ChangeStatusDto,
+  CustomerRejectVerificationDto,
 } from '../../application';
 
 import {
@@ -65,15 +66,15 @@ export class VerificationRequestController {
 
   /**
    * Create a new verification request
-   * PUBLIC: Allows unauthenticated users to proceed to payment
-   * Authenticated users will have their ID attached; unauthenticated will be assigned temp ID
+   * REQUIRES AUTHENTICATION: User must be logged in to create a request
    */
-  @Public()
+  @Auth()
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create verification request',
-    description: 'Create a new verification request with location, type, and pricing details. Authentication optional—unauthenticated users can continue to payment and authenticate later.',
+    description: 'Create a new verification request with location, type, and pricing details. Requires authentication.',
   })
   @ApiCreatedResponse({
     description: 'Verification request created successfully',
@@ -82,15 +83,12 @@ export class VerificationRequestController {
   @ApiBadRequestResponse({ description: 'Invalid request data' })
   async createVerificationRequest(
     @Body() createDto: CreateVerificationRequestDto,
-    @CurrentUser('id') clientId?: string,
-    @Request() req?: any,
+    @CurrentUser('id') clientId: string,
   ): Promise<VerificationRequestResponseDto> {
     try {
-      // Use authenticated user ID, or generate temporary ID for unauthenticated users
-      const userId = clientId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      this.logger.log(`Creating verification request for ${clientId ? 'authenticated user' : 'unauthenticated user'}: ${userId}`);
+      this.logger.log(`Creating verification request for authenticated user: ${clientId}`);
 
-      const verificationRequest = await this.createUseCase.execute(userId, createDto);
+      const verificationRequest = await this.createUseCase.execute(clientId, createDto);
 
       return this.mapToResponse(verificationRequest);
     } catch (error) {
@@ -485,6 +483,77 @@ export class VerificationRequestController {
   }
 
   /**
+   * Customer accepts verification result
+   */
+  @Auth()
+  @Post(':id/accept')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Accept verification result',
+    description: 'Customer accepts the completed verification result',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Verification request ID',
+  })
+  @ApiOkResponse({
+    description: 'Verification accepted successfully',
+    type: VerificationRequestResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid request or verification not completed' })
+  async acceptVerification(
+    @Param('id') id: string,
+    @CurrentUser('id') clientId: string,
+  ): Promise<VerificationRequestResponseDto> {
+    try {
+      this.logger.log(`Customer ${clientId} accepting verification request ${id}`);
+
+      const verificationRequest = await this.updateUseCase.acceptByCustomer(id, clientId);
+      return this.mapToResponse(verificationRequest);
+    } catch (error) {
+      this.logger.error(`Failed to accept verification ${id}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Customer rejects verification result
+   */
+  @Auth()
+  @Post(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Reject verification result',
+    description: 'Customer rejects the completed verification result with reason',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Verification request ID',
+  })
+  @ApiOkResponse({
+    description: 'Verification rejected successfully',
+    type: VerificationRequestResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid request or verification not completed' })
+  async rejectVerification(
+    @Param('id') id: string,
+    @CurrentUser('id') clientId: string,
+    @Body() rejectDto: CustomerRejectVerificationDto,
+  ): Promise<VerificationRequestResponseDto> {
+    try {
+      this.logger.log(`Customer ${clientId} rejecting verification request ${id} with reason: ${rejectDto.reason}`);
+
+      const verificationRequest = await this.updateUseCase.rejectByCustomer(id, clientId, rejectDto);
+      return this.mapToResponse(verificationRequest);
+    } catch (error) {
+      this.logger.error(`Failed to reject verification ${id}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Map domain entity to response DTO
    */
   private mapToResponse(request: any): VerificationRequestResponseDto {
@@ -521,6 +590,14 @@ export class VerificationRequestController {
       notes: request.notes,
       paymentId: request.paymentId,
       paymentStatus: request.paymentStatus,
+      customerResponseStatus: request.customerResponseStatus,
+      customerResponseDate: request.customerResponseDate?.toISOString(),
+      rejectionDetails: request.rejectionDetails ? {
+        reason: request.rejectionDetails.reason,
+        notes: request.rejectionDetails.notes,
+        rejectedAt: request.rejectionDetails.rejectedAt.toISOString(),
+        rejectedBy: request.rejectionDetails.rejectedBy,
+      } : undefined,
       createdAt: request.createdAt.toISOString(),
       modifiedAt: request.modifiedAt.toISOString(),
     };

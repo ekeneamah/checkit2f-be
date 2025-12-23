@@ -43,9 +43,23 @@ async function bootstrap(): Promise<void> {
     // Compression middleware
     app.use(compression());
 
-    // CORS configuration
+    // CORS configuration - support multiple frontend origins
+    const allowedOrigins = [
+      configService.get<string>('FRONTEND_URL', 'http://localhost:4200'),
+      'http://localhost:5173', // Agent mobile app (Vite default)
+      'http://localhost:5174', // Agent mobile app (alternate port)
+      'http://localhost:5175', // Additional Vite port
+    ];
+    
     app.enableCors({
-      origin: configService.get<string>('FRONTEND_URL', 'http://localhost:4200'),
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(null, false);
+        }
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],

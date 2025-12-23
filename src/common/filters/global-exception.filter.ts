@@ -11,6 +11,7 @@ import { Request, Response } from 'express';
 /**
  * Global exception filter to handle all unhandled exceptions
  * Provides consistent error response format and logging
+ * 
  */
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {

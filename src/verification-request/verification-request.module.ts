@@ -34,6 +34,7 @@ import { LocationPricingService } from './application/services/location-pricing.
 import { PricingCalculationService } from './application/services/pricing-calculation.service';
 import { PricingConfigService } from './application/services/pricing-config.service';
 import { VerificationPaymentService } from './application/services/verification-payment.service';
+import { IntentRouterService } from './application/services/intent-router.service';
 import { 
   FixedPriceCalculator,
   RadiusBasedCalculator,
@@ -98,6 +99,8 @@ import { AdminPricingConfigController } from './presentation/controllers/admin-p
     
     // Payment services
     VerificationPaymentService,
+    // Intent routing
+    IntentRouterService,
     
     // Map Router services
     GptRouterService,

@@ -50,7 +50,10 @@ onInit(async () => {
   // CORS - Allow frontend domains
   app.enableCors({
     origin: [
+      'http://localhost:4200',
       'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175',
       'https://checkit24-6e5bf.web.app',
       'https://checkit24-6e5bf.firebaseapp.com'
     ],

@@ -41,12 +41,19 @@ export class CreateVerificationRequestUseCase {
         dto.verificationType.specialInstructions,
       );
 
-      // Calculate price based on verification type
-      const basePrice = verificationType.getBasePrice();
-      const urgencyMultiplier = verificationType.getUrgencyMultiplier();
-      const finalAmount = basePrice * urgencyMultiplier;
-      
-      const price = new Price(finalAmount, 'USD');
+      // Use price from DTO if provided, otherwise calculate from verification type
+      let price: Price;
+      if (dto.price?.amount) {
+        price = new Price(dto.price.amount, dto.price.currency || 'NGN');
+        this.logger.log(`Using provided price: ${dto.price.amount} ${dto.price.currency || 'NGN'}`);
+      } else {
+        // Calculate price based on verification type
+        const basePrice = verificationType.getBasePrice();
+        const urgencyMultiplier = verificationType.getUrgencyMultiplier();
+        const finalAmount = basePrice * urgencyMultiplier;
+        price = new Price(finalAmount, 'NGN');
+        this.logger.log(`Calculated price: ${finalAmount} NGN`);
+      }
 
       // Create domain entity
       const verificationRequest = new VerificationRequest(

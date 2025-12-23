@@ -204,8 +204,9 @@ export class VerificationPaymentService {
     try {
       this.logger.log(`Processing payment webhook: ${event.type}`);
 
+      const newLocal = event?.headers?.['x-paystack-signature'] ? 'paystack' : 'stripe';
       // Verify webhook signature
-      const provider = event?.headers?.['x-paystack-signature'] ? 'paystack' : 'stripe';
+      const provider = newLocal;
       const signature = event?.headers?.['x-paystack-signature'] || event?.headers?.['stripe-signature'] || '';
       const payload = JSON.stringify(event?.body || event);
 

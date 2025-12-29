@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GeminiAIService } from './gemini-ai.service';
+import { GeminiQuestionnaireService } from './gemini-questionnaire.service';
 import { GeminiAIController } from './gemini-ai.controller';
 import { InfrastructureModule } from '../../infrastructure/infrastructure.module';
 import { GoogleMapsModule } from '../google-maps/google-maps.module';
@@ -34,7 +35,7 @@ import { GoogleMapsModule } from '../google-maps/google-maps.module';
     GoogleMapsModule,
   ],
   controllers: [GeminiAIController],
-  providers: [GeminiAIService],
-  exports: [GeminiAIService],
+  providers: [GeminiAIService, GeminiQuestionnaireService],
+  exports: [GeminiAIService, GeminiQuestionnaireService],
 })
 export class GeminiAIModule {}

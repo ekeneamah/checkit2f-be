@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { VerificationRequest, RejectionDetails } from '../../domain';
 import { IVerificationRequestRepository } from '../interfaces/verification-request.repository.interface';
-import { AssignAgentDto, ChangeStatusDto, CustomerRejectVerificationDto } from '../dtos/verification-request.dto';
+import { AssignAgentDto, ChangeStatusDto, CustomerRejectVerificationDto, SubmitVerificationDto } from '../dtos/verification-request.dto';
 
 /**
  * Use case for updating verification requests
@@ -275,6 +275,44 @@ export class UpdateVerificationRequestUseCase {
 
     } catch (error) {
       this.logger.error(`Failed to reject verification for request ${requestId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Agent submits verification result
+   */
+  async submitVerification(requestId: string, dto: SubmitVerificationDto, agentId: string): Promise<VerificationRequest> {
+    try {
+      this.logger.log(`Agent ${agentId} submitting verification for request: ${requestId}`);
+
+      const request = await this.repository.findById(requestId);
+      if (!request) {
+        throw new NotFoundException(`Verification request with ID ${requestId} not found`);
+      }
+
+      // Verify the agent is assigned to this request
+      if (request.assignedAgentId !== agentId) {
+        throw new ForbiddenException('You can only submit verification for requests assigned to you');
+      }
+
+      // Complete the verification using domain logic
+      request.complete();
+
+      // Add verification details (this could be extended with specific verification result storage)
+      // For now, we'll add the notes to the request notes field
+      if (dto.notes) {
+        request.updateNotes(dto.notes);
+      }
+
+      // Save updated request
+      const updatedRequest = await this.repository.save(request);
+      
+      this.logger.log(`Verification submitted successfully by agent ${agentId} for request: ${requestId}`);
+      return updatedRequest;
+
+    } catch (error) {
+      this.logger.error(`Failed to submit verification for request ${requestId}: ${error.message}`);
       throw error;
     }
   }

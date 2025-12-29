@@ -13,7 +13,7 @@ export class ContactInfo {
   }
 
   static create(email: string, phoneNumber: string, emergencyContact?: string): ContactInfo {
-    return new ContactInfo(email, phoneNumber, emergencyContact);
+    return new ContactInfo(email.toLowerCase(), phoneNumber, emergencyContact);
   }
 
   private validate(): void {

@@ -96,12 +96,16 @@ export class FirestoreAgentRepository implements IAgentRepository {
       const db = this.firebaseService.db;
       const agentData = agent.toJSON();
 
+      // Debug: Log the data being sent to Firestore
+      this.logger.debug(`Updating agent ${agent.id} with data: ${JSON.stringify(agentData)}`);
+
       await db.collection(this.collectionName).doc(agent.id).update(agentData);
 
       this.logger.log(`Agent updated: ${agent.id}`);
       return agent;
     } catch (error) {
       this.logger.error(`Failed to update agent ${agent.id}: ${error.message}`, error.stack);
+      this.logger.error(`Error details: ${JSON.stringify(error)}`);
       throw new InternalServerErrorException('Failed to update agent');
     }
   }
@@ -161,6 +165,9 @@ export class FirestoreAgentRepository implements IAgentRepository {
   ): Promise<Agent[]> {
     try {
       const db = this.firebaseService.db;
+      
+      // Query for both single-city (legacy) and multi-city formats
+      // Single city: where serviceArea.city == city
       let query = db
         .collection(this.collectionName)
         .where('status', '==', AgentStatus.ACTIVE)
@@ -171,11 +178,43 @@ export class FirestoreAgentRepository implements IAgentRepository {
         query = query.where('specializations', 'array-contains', specialization);
       }
 
-      const snapshot = await query.get();
+      const singleCitySnapshot = await query.get();
+      
+      // Query for multi-city format: where city appears in cityAreas array
+      let multiCityQuery = db
+        .collection(this.collectionName)
+        .where('status', '==', AgentStatus.ACTIVE)
+        .where('availabilityStatus', '==', AvailabilityStatus.AVAILABLE);
 
-      return snapshot.docs.map(doc => 
+      if (specialization) {
+        multiCityQuery = multiCityQuery.where('specializations', 'array-contains', specialization);
+      }
+
+      const multiCitySnapshot = await multiCityQuery.get();
+      
+      // Filter multi-city results for the specified city
+      const multiCityAgents = multiCitySnapshot.docs
+        .map(doc => Agent.fromJSON({ id: doc.id, ...doc.data() }))
+        .filter(agent => {
+          const sa = agent.serviceArea.toJSON();
+          // Type guard: check if it has cityAreas property
+          if ('cityAreas' in sa && sa.cityAreas) {
+            return sa.cityAreas.some((ca: any) => ca.city === city);
+          }
+          return false;
+        });
+
+      // Combine and deduplicate results
+      const singleCityAgents = singleCitySnapshot.docs.map(doc => 
         Agent.fromJSON({ id: doc.id, ...doc.data() })
       );
+      
+      const allAgents = [...singleCityAgents, ...multiCityAgents];
+      const uniqueAgents = Array.from(
+        new Map(allAgents.map(agent => [agent.id, agent])).values()
+      );
+      
+      return uniqueAgents;
     } catch (error) {
       this.logger.error(`Failed to find available agents: ${error.message}`, error.stack);
       throw new InternalServerErrorException('Failed to find available agents');

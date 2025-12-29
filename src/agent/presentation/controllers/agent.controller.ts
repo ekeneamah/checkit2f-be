@@ -59,6 +59,23 @@ export class AgentController {
   ) {}
 
   /**
+   * Helper to get current agent - tries email first, then firebaseUid
+   */
+  private async getCurrentAgent(user: IUser) {
+    this.logger.log(`Looking up agent for user: ${user.email}, id: ${user.id}`);
+    try {
+      const agent = await this.getUseCase.getByEmail(user.email);
+      this.logger.log(`Found agent by email: ${agent.id}`);
+      return agent;
+    } catch (emailError: any) {
+      this.logger.log(`Email lookup failed: ${emailError.message}, trying firebaseUid`);
+      const firebaseUid = user.metadata?.firebaseUid || user.id;
+      this.logger.log(`Looking up by firebaseUid: ${firebaseUid}`);
+      return await this.getUseCase.getByFirebaseUid(firebaseUid);
+    }
+  }
+
+  /**
    * Register a new agent
    */
   @Public()
@@ -104,8 +121,8 @@ export class AgentController {
     @CurrentUser() user: IUser,
   ): Promise<AgentResponseDto> {
     try {
-      const firebaseUid = user.metadata?.firebaseUid || user.id;
-      const agent = await this.getUseCase.getByFirebaseUid(firebaseUid);
+      this.logger.log(`Getting profile for user: ${user.email}, id: ${user.id}`);
+      const agent = await this.getCurrentAgent(user);
       return this.mapToResponse(agent);
     } catch (error) {
       this.logger.error(`Failed to get agent profile: ${error.message}`);
@@ -210,9 +227,8 @@ export class AgentController {
     @Body() updateDto: UpdateAgentProfileDto,
   ): Promise<AgentResponseDto> {
     try {
-      const firebaseUid = user.metadata?.firebaseUid || user.id;
-      const currentAgent = await this.getUseCase.getByFirebaseUid(firebaseUid);
-      const agent = await this.updateUseCase.updateProfile(currentAgent.id, firebaseUid, updateDto);
+      const currentAgent = await this.getCurrentAgent(user);
+      const agent = await this.updateUseCase.updateProfile(currentAgent.id, currentAgent.firebaseUid, updateDto);
       return this.mapToResponse(agent);
     } catch (error) {
       this.logger.error(`Failed to update profile: ${error.message}`);
@@ -239,9 +255,8 @@ export class AgentController {
     @Body() updateDto: UpdateServiceAreaDto,
   ): Promise<AgentResponseDto> {
     try {
-      const firebaseUid = user.metadata?.firebaseUid || user.id;
-      const currentAgent = await this.getUseCase.getByFirebaseUid(firebaseUid);
-      const agent = await this.updateUseCase.updateServiceArea(currentAgent.id, firebaseUid, updateDto);
+      const currentAgent = await this.getCurrentAgent(user);
+      const agent = await this.updateUseCase.updateServiceArea(currentAgent.id, currentAgent.firebaseUid, updateDto);
       return this.mapToResponse(agent);
     } catch (error) {
       this.logger.error(`Failed to update service area: ${error.message}`);
@@ -268,9 +283,8 @@ export class AgentController {
     @Body() updateDto: UpdateSpecializationsDto,
   ): Promise<AgentResponseDto> {
     try {
-      const firebaseUid = user.metadata?.firebaseUid || user.id;
-      const currentAgent = await this.getUseCase.getByFirebaseUid(firebaseUid);
-      const agent = await this.updateUseCase.updateSpecializations(currentAgent.id, firebaseUid, updateDto);
+      const currentAgent = await this.getCurrentAgent(user);
+      const agent = await this.updateUseCase.updateSpecializations(currentAgent.id, currentAgent.firebaseUid, updateDto);
       return this.mapToResponse(agent);
     } catch (error) {
       this.logger.error(`Failed to update specializations: ${error.message}`);
@@ -297,9 +311,8 @@ export class AgentController {
     @Body() updateDto: UpdateAvailabilityDto,
   ): Promise<AgentResponseDto> {
     try {
-      const firebaseUid = user.metadata?.firebaseUid || user.id;
-      const currentAgent = await this.getUseCase.getByFirebaseUid(firebaseUid);
-      const agent = await this.updateUseCase.updateAvailability(currentAgent.id, firebaseUid, updateDto);
+      const currentAgent = await this.getCurrentAgent(user);
+      const agent = await this.updateUseCase.updateAvailability(currentAgent.id, currentAgent.firebaseUid, updateDto);
       return this.mapToResponse(agent);
     } catch (error) {
       this.logger.error(`Failed to update availability: ${error.message}`);
@@ -325,9 +338,8 @@ export class AgentController {
     @CurrentUser() user: IUser,
   ): Promise<AgentResponseDto> {
     try {
-      const firebaseUid = user.metadata?.firebaseUid || user.id;
-      const currentAgent = await this.getUseCase.getByFirebaseUid(firebaseUid);
-      const agent = await this.updateUseCase.goOnline(currentAgent.id, firebaseUid);
+      const currentAgent = await this.getCurrentAgent(user);
+      const agent = await this.updateUseCase.goOnline(currentAgent.id, currentAgent.firebaseUid);
       return this.mapToResponse(agent);
     } catch (error) {
       this.logger.error(`Failed to go online: ${error.message}`);
@@ -353,9 +365,8 @@ export class AgentController {
     @CurrentUser() user: IUser,
   ): Promise<AgentResponseDto> {
     try {
-      const firebaseUid = user.metadata?.firebaseUid || user.id;
-      const currentAgent = await this.getUseCase.getByFirebaseUid(firebaseUid);
-      const agent = await this.updateUseCase.goOffline(currentAgent.id, firebaseUid);
+      const currentAgent = await this.getCurrentAgent(user);
+      const agent = await this.updateUseCase.goOffline(currentAgent.id, currentAgent.firebaseUid);
       return this.mapToResponse(agent);
     } catch (error) {
       this.logger.error(`Failed to go offline: ${error.message}`);

@@ -171,16 +171,23 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
   async findActiveByCityWithAreas(city: string): Promise<LocationPricing[]> {
     try {
       const db = this.firebaseService.db;
+      // Query without orderBy to avoid composite index requirement
       const snapshot = await db.collection(this.collectionName)
         .where('city', '==', city.trim())
         .where('status', '==', 'active')
-        .orderBy('area')
         .get();
 
-      return snapshot.docs.map(doc => ({
+      // Sort in memory instead
+      const results = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as LocationPricing));
+      
+      return results.sort((a, b) => {
+        const areaA = a.area || '';
+        const areaB = b.area || '';
+        return areaA.localeCompare(areaB);
+      });
     } catch (error) {
       this.logger.error(`Failed to find active pricing by city: ${error.message}`);
       throw error;
@@ -210,6 +217,28 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
       return results;
     } catch (error) {
       this.logger.error(`Failed to search pricing: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async findDistinctCities(): Promise<string[]> {
+    try {
+      const db = this.firebaseService.db;
+      const snapshot = await db.collection(this.collectionName)
+        .where('status', '==', 'active')
+        .get();
+
+      const cities = new Set<string>();
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.city) {
+          cities.add(data.city);
+        }
+      });
+
+      return Array.from(cities).sort();
+    } catch (error) {
+      this.logger.error(`Failed to find distinct cities: ${error.message}`);
       throw error;
     }
   }

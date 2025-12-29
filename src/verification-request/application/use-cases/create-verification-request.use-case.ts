@@ -26,6 +26,8 @@ export class CreateVerificationRequestUseCase {
       // Create value objects
       const location = new Location(
         dto.location.address,
+        dto.location.city,
+        dto.location.area,
         dto.location.latitude,
         dto.location.longitude,
         dto.location.placeId,

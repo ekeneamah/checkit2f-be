@@ -131,6 +131,13 @@ export class LocationPricingService {
   }
 
   /**
+   * Get all distinct cities with pricing
+   */
+  async getDistinctCities(): Promise<string[]> {
+    return await this.pricingRepository.findDistinctCities();
+  }
+
+  /**
    * Check if pricing configuration is currently active
    */
   private isPricingActive(pricing: LocationPricing): boolean {

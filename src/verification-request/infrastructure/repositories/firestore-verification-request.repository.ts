@@ -261,6 +261,8 @@ export class FirestoreVerificationRequestRepository implements IVerificationRequ
           const distance = request.location.distanceTo(
             new Location(
               '',
+              '',
+              '',
               filters.location!.latitude,
               filters.location!.longitude
             )

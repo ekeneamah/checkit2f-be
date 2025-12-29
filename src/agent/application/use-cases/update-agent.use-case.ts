@@ -8,7 +8,7 @@ import { Inject } from '@nestjs/common';
 
 import { IAgentRepository } from '../../domain/repositories/agent.repository.interface';
 import { Agent } from '../../domain/entities/agent.entity';
-import { ContactInfo, ServiceArea } from '../../domain/value-objects';
+import { ContactInfo, ServiceArea, MultiCityServiceArea } from '../../domain/value-objects';
 import {
   UpdateAgentProfileDto,
   UpdateServiceAreaDto,
@@ -90,8 +90,24 @@ export class UpdateAgentUseCase {
       throw new ForbiddenException('You can only update your own service area');
     }
 
-    const serviceArea = ServiceArea.create(dto.city, dto.areas, dto.radius);
+    // Support both single city (legacy) and multi-city format
+    let serviceArea: ServiceArea | MultiCityServiceArea;
+    
+    if (dto.cityAreas && dto.cityAreas.length > 0) {
+      // Multi-city format
+      serviceArea = MultiCityServiceArea.create(dto.cityAreas, dto.radius);
+    } else if (dto.city && dto.areas && dto.areas.length > 0) {
+      // Single city format (legacy)
+      serviceArea = ServiceArea.create(dto.city, dto.areas, dto.radius);
+    } else {
+      throw new ForbiddenException('Either city/areas or cityAreas must be provided');
+    }
+
     agent.updateServiceArea(serviceArea);
+
+    // Debug: Log the service area structure before saving
+    this.logger.debug(`Service area structure: ${JSON.stringify(serviceArea.toJSON())}`);
+    this.logger.debug(`Agent JSON structure: ${JSON.stringify(agent.toJSON())}`);
 
     const updatedAgent = await this.agentRepository.update(agent);
     this.logger.log(`Agent service area updated: ${agentId}`);

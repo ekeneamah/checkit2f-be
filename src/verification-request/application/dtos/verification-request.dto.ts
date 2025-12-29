@@ -17,6 +17,22 @@ export class LocationDto {
   address: string;
 
   @ApiProperty({
+    description: 'City where the verification will take place',
+    example: 'Lagos',
+  })
+  @IsString()
+  @IsNotEmpty()
+  city: string;
+
+  @ApiProperty({
+    description: 'Area/district within the city',
+    example: 'Lekki',
+  })
+  @IsString()
+  @IsNotEmpty()
+  area: string;
+
+  @ApiProperty({
     description: 'Latitude coordinate',
     example: 6.5244,
     minimum: -90,
@@ -547,4 +563,48 @@ export class CustomerRejectVerificationDto {
   @IsString()
   @IsNotEmpty()
   notes: string;
+}
+
+/**
+ * Submit verification result DTO
+ */
+export class SubmitVerificationDto {
+  @ApiProperty({
+    description: 'Verification result',
+    example: 'verified',
+    enum: ['verified', 'not_verified', 'inconclusive'],
+  })
+  @IsString()
+  @IsNotEmpty()
+  @IsEnum(['verified', 'not_verified', 'inconclusive'])
+  result: 'verified' | 'not_verified' | 'inconclusive';
+
+  @ApiProperty({
+    description: 'Agent notes about the verification',
+    example: 'Property matches the description provided. All documents verified successfully.',
+    maxLength: 1000,
+  })
+  @IsString()
+  @IsNotEmpty()
+  notes: string;
+
+  @ApiPropertyOptional({
+    description: 'Array of findings from the verification',
+    example: ['Property exists at specified location', 'Owner confirmed identity'],
+    type: [String],
+  })
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  findings?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Array of photo URLs as evidence',
+    example: ['https://storage.example.com/photos/verification1.jpg'],
+    type: [String],
+  })
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  photos?: string[];
 }

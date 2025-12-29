@@ -35,6 +35,7 @@ import {
   AssignAgentDto,
   ChangeStatusDto,
   CustomerRejectVerificationDto,
+  SubmitVerificationDto,
 } from '../../application';
 
 import {
@@ -42,6 +43,9 @@ import {
   GetVerificationRequestsUseCase,
   UpdateVerificationRequestUseCase,
 } from '../../application';
+import { GenerateQuestionnaireUseCase } from '../../application/use-cases/generate-questionnaire.use-case';
+import { SubmitQuestionnaireResponsesUseCase } from '../../application/use-cases/submit-questionnaire-responses.use-case';
+import { SubmitQuestionnaireResponsesDto } from '../dto/submit-questionnaire-responses.dto';
 
 // Import authentication decorators
 import { Auth, AuthWithRoles, AuthWithPermissions } from '../../../auth/decorators/auth.decorator';
@@ -62,6 +66,8 @@ export class VerificationRequestController {
     private readonly createUseCase: CreateVerificationRequestUseCase,
     private readonly getUseCase: GetVerificationRequestsUseCase,
     private readonly updateUseCase: UpdateVerificationRequestUseCase,
+    private readonly generateQuestionnaireUseCase: GenerateQuestionnaireUseCase,
+    private readonly submitQuestionnaireResponsesUseCase: SubmitQuestionnaireResponsesUseCase,
   ) {}
 
   /**
@@ -129,9 +135,164 @@ export class VerificationRequestController {
   }
 
   /**
+   * Get available verification requests for agents to accept
+   * Shows pending/submitted requests that agents can pick up
+   */
+  @AuthWithRoles(UserRole.AGENT)
+  @Get(':id/questionnaire')
+  @ApiOperation({
+    summary: 'Generate questionnaire for verification request',
+    description: 'Generate a structured questionnaire from verification instructions using AI',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Verification request unique identifier',
+    example: 'req_1234567890abcdef',
+  })
+  @ApiOkResponse({
+    description: 'Questionnaire generated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', example: 'Property Inspection Questionnaire' },
+        description: { type: 'string', example: 'Complete this questionnaire to verify the property' },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: 'q1' },
+              question: { type: 'string', example: 'Is the property accessible?' },
+              type: { type: 'string', enum: ['text', 'boolean', 'number', 'photo', 'multiple_choice'] },
+              required: { type: 'boolean', example: true },
+              options: { type: 'array', items: { type: 'string' } },
+              placeholder: { type: 'string', example: 'Enter details here...' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Verification request not found' })
+  async getQuestionnaire(@Param('id') id: string, @CurrentUser() user: any) {
+    try {
+      this.logger.log(`Generating questionnaire for verification request: ${id}`);
+      
+      // Pass agent ID for authorization check
+      const agentId = user?.agentId || user?.id;
+      const questionnaire = await this.generateQuestionnaireUseCase.execute(id, agentId);
+      return questionnaire;
+    } catch (error) {
+      this.logger.error(`Failed to generate questionnaire for ${id}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Submit questionnaire responses and generate AI report
+   */
+  @AuthWithRoles(UserRole.AGENT)
+  @Post(':id/questionnaire/responses')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Submit questionnaire responses',
+    description: 'Submit completed questionnaire responses and generate AI report',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Verification request unique identifier',
+    example: 'req_1234567890abcdef',
+  })
+  @ApiOkResponse({
+    description: 'Questionnaire responses submitted and report generated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string', example: 'Property verification completed successfully...' },
+        verificationRequestId: { type: 'string', example: 'req_1234567890abcdef' },
+        submittedAt: { type: 'string', format: 'date-time' },
+        responses: { type: 'object' },
+        photoUrls: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Verification request not found' })
+  @ApiBadRequestResponse({ description: 'Invalid or incomplete responses' })
+  async submitQuestionnaireResponses(
+    @Param('id') id: string,
+    @Body() dto: SubmitQuestionnaireResponsesDto,
+    @CurrentUser() user: any,
+  ) {
+    try {
+      this.logger.log(`Submitting questionnaire responses for request: ${id}`);
+      
+      const agentId = user?.agentId || user?.id;
+      const report = await this.submitQuestionnaireResponsesUseCase.execute(id, agentId, dto);
+      
+      return report;
+    } catch (error) {
+      this.logger.error(`Failed to submit questionnaire responses for ${id}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get available verification requests for agents to accept
+   * Shows pending/submitted requests that agents can pick up
+   */
+  @AuthWithRoles(UserRole.AGENT)
+  @Get('agent/available')
+  @ApiOperation({
+    summary: 'Get available verification requests for agent',
+    description: 'Retrieve pending verification requests that the agent can accept',
+  })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by status' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: 10 })
+  @ApiOkResponse({
+    description: 'Available verification requests retrieved successfully',
+    type: [VerificationRequestResponseDto],
+  })
+  async getAvailableForAgent(
+    @Query() query: VerificationRequestQueryDto,
+  ): Promise<{
+    items: VerificationRequestResponseDto[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
+    try {
+      this.logger.log('Getting available verification requests for agent');
+
+      // Filter to show only submitted/pending requests that can be accepted by agents
+      const filters = {
+        status: query.status || 'SUBMITTED',
+        verificationType: query.type,
+      };
+
+      const options = {
+        limit: query.limit || 10,
+        offset: ((query.page || 1) - 1) * (query.limit || 10),
+        sortBy: query.sortBy || 'createdAt',
+        sortOrder: query.sortOrder || 'desc',
+      };
+
+      const result = await this.getUseCase.getWithFilters({ ...query, status: filters.status });
+
+      return {
+        ...result,
+        items: result.items.map(item => this.mapToResponse(item)),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get available verification requests: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Get verification requests with filtering and pagination
    */
-  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.AGENT_MANAGER)
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.AGENT_MANAGER, UserRole.AGENT)
   @Get()
   @ApiOperation({
     summary: 'Get verification requests',
@@ -362,6 +523,38 @@ export class VerificationRequestController {
   }
 
   /**
+   * Agent accepts/self-assigns to verification request
+   */
+  @AuthWithRoles(UserRole.AGENT)
+  @Post(':id/accept-agent')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Agent accepts verification request',
+    description: 'Agent self-assigns to an available verification request',
+  })
+  @ApiParam({ name: 'id', description: 'Verification request ID' })
+  @ApiOkResponse({
+    description: 'Agent assigned successfully',
+    type: VerificationRequestResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Verification request not found' })
+  @ApiBadRequestResponse({ description: 'Cannot assign agent in current status' })
+  async acceptByAgent(
+    @Param('id') id: string,
+    @CurrentUser('id') agentId: string,
+  ): Promise<VerificationRequestResponseDto> {
+    try {
+      this.logger.log(`Agent ${agentId} accepting verification request: ${id}`);
+
+      const verificationRequest = await this.updateUseCase.assignAgent(id, { agentId });
+      return this.mapToResponse(verificationRequest);
+    } catch (error) {
+      this.logger.error(`Failed to accept request ${id} by agent ${agentId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Change verification request status
    */
   @AuthWithPermissions(Permission.UPDATE_VERIFICATION_REQUEST)
@@ -389,6 +582,39 @@ export class VerificationRequestController {
       return this.mapToResponse(verificationRequest);
     } catch (error) {
       this.logger.error(`Failed to change status of request ${id}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Agent submits verification result
+   */
+  @AuthWithRoles(UserRole.AGENT)
+  @Post(':id/submit')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Submit verification result',
+    description: 'Agent submits the verification result with findings and evidence',
+  })
+  @ApiParam({ name: 'id', description: 'Verification request ID' })
+  @ApiOkResponse({
+    description: 'Verification submitted successfully',
+    type: VerificationRequestResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'Verification request not found' })
+  @ApiBadRequestResponse({ description: 'Cannot submit verification in current status' })
+  async submitVerification(
+    @Param('id') id: string,
+    @Body() submitDto: SubmitVerificationDto,
+    @CurrentUser('id') agentId: string,
+  ): Promise<VerificationRequestResponseDto> {
+    try {
+      this.logger.log(`Agent ${agentId} submitting verification for request: ${id}`);
+
+      const verificationRequest = await this.updateUseCase.submitVerification(id, submitDto, agentId);
+      return this.mapToResponse(verificationRequest);
+    } catch (error) {
+      this.logger.error(`Failed to submit verification for request ${id}: ${error.message}`);
       throw error;
     }
   }
@@ -571,6 +797,8 @@ export class VerificationRequestController {
       },
       location: {
         address: request.location.address,
+        city: request.location.city,
+        area: request.location.area,
         latitude: request.location.latitude,
         longitude: request.location.longitude,
         placeId: request.location.placeId,

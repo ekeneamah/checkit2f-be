@@ -5,6 +5,8 @@
 export class Location {
   constructor(
     private readonly _address: string,
+    private readonly _city: string,
+    private readonly _area: string,
     private readonly _latitude: number,
     private readonly _longitude: number,
     private readonly _placeId?: string,
@@ -12,11 +14,21 @@ export class Location {
     private readonly _accessInstructions?: string,
   ) {
     this.validateAddress();
+    this.validateCity();
+    this.validateArea();
     this.validateCoordinates();
   }
 
   get address(): string {
     return this._address;
+  }
+
+  get city(): string {
+    return this._city;
+  }
+
+  get area(): string {
+    return this._area;
   }
 
   get latitude(): number {
@@ -45,6 +57,24 @@ export class Location {
   private validateAddress(): void {
     if (!this._address || this._address.trim().length < 10) {
       throw new Error('Address must be at least 10 characters long');
+    }
+  }
+
+  /**
+   * Validate city
+   */
+  private validateCity(): void {
+    if (!this._city || this._city.trim().length === 0) {
+      throw new Error('City is required');
+    }
+  }
+
+  /**
+   * Validate area
+   */
+  private validateArea(): void {
+    if (!this._area || this._area.trim().length === 0) {
+      throw new Error('Area is required');
     }
   }
 
@@ -99,6 +129,8 @@ export class Location {
   public equals(other: Location): boolean {
     return (
       this._address === other._address &&
+      this._city === other._city &&
+      this._area === other._area &&
       this._latitude === other._latitude &&
       this._longitude === other._longitude &&
       this._placeId === other._placeId
@@ -111,6 +143,8 @@ export class Location {
   public toJSON(): Record<string, any> {
     return {
       address: this._address,
+      city: this._city,
+      area: this._area,
       latitude: this._latitude,
       longitude: this._longitude,
       placeId: this._placeId,
@@ -125,6 +159,8 @@ export class Location {
   public static fromJSON(data: any): Location {
     return new Location(
       data.address,
+      data.city || 'Unknown', // Default for legacy data
+      data.area || 'Unknown', // Default for legacy data
       data.latitude,
       data.longitude,
       data.placeId,

@@ -41,6 +41,24 @@ export class LocationPricingController {
   constructor(private readonly locationPricingService: LocationPricingService) {}
 
   /**
+   * Get all available cities with pricing
+   */
+  @Public()
+  @Get('cities')
+  @ApiOperation({
+    summary: 'Get all cities',
+    description: 'Get all cities that have pricing configurations',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Cities retrieved successfully',
+    type: [String],
+  })
+  async getCities(): Promise<string[]> {
+    return await this.locationPricingService.getDistinctCities();
+  }
+
+  /**
    * Create new location pricing configuration
    */
   @Public()

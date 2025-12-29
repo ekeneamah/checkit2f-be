@@ -8,6 +8,8 @@ import {
   GetVerificationRequestsUseCase,
   UpdateVerificationRequestUseCase,
 } from './application';
+import { GenerateQuestionnaireUseCase } from './application/use-cases/generate-questionnaire.use-case';
+import { SubmitQuestionnaireResponsesUseCase } from './application/use-cases/submit-questionnaire-responses.use-case';
 
 // Controllers
 import { VerificationRequestController } from './presentation/controllers/verification-request.controller';
@@ -16,6 +18,7 @@ import { AdminRequestTypeController } from './presentation/controllers/admin-req
 import { MapRouterController } from './presentation/controllers/map-router.controller';
 import { LocationPricingController } from './presentation/controllers/location-pricing.controller';
 import { PaymentController } from './presentation/controllers/payment.controller';
+import { UploadController } from './presentation/controllers/upload.controller';
 
 // Repositories
 import { RequestTypeConfigRepository } from './infrastructure/repositories/request-type-config.repository';
@@ -49,6 +52,8 @@ import { GeminiAIModule } from '../external-services/gemini-ai/gemini-ai.module'
 import { InfrastructureModule } from '../infrastructure/infrastructure.module';
 import { PaymentModule } from '../external-services/payment/payment.module';
 import { AdminPricingConfigController } from './presentation/controllers/admin-pricing-config.controller';
+import { AdminDashboardController } from '../admin/admin-dashboard.controller';
+import { AdminPricingController } from '../admin/admin-pricing.controller';
 
 /**
  * Verification Request module
@@ -60,6 +65,7 @@ import { AdminPricingConfigController } from './presentation/controllers/admin-p
     GeminiAIModule, // Import GeminiAIModule to make GeminiAIService available
     InfrastructureModule, // Import InfrastructureModule to make FirebaseService available
     forwardRef(() => PaymentModule), // Circular-safe import with PaymentModule
+    forwardRef(() => require('../agent/agent.module').AgentModule), // Import AgentModule for admin dashboard
   ],
   providers: [
     // Repository providers
@@ -81,6 +87,8 @@ import { AdminPricingConfigController } from './presentation/controllers/admin-p
     CreateVerificationRequestUseCase,
     GetVerificationRequestsUseCase,
     UpdateVerificationRequestUseCase,
+    GenerateQuestionnaireUseCase,
+    SubmitQuestionnaireResponsesUseCase,
     
     // Pricing services
     PricingConfigService,
@@ -111,10 +119,13 @@ import { AdminPricingConfigController } from './presentation/controllers/admin-p
     VerificationRequestController,
     PricingController,
     AdminPricingConfigController,
+    AdminPricingController,
     AdminRequestTypeController,
     MapRouterController,
+    AdminDashboardController,
     LocationPricingController,
     PaymentController,
+    UploadController,
   ],
   exports: [
     'IVerificationRequestRepository',

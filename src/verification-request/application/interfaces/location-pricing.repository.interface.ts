@@ -54,4 +54,9 @@ export interface ILocationPricingRepository {
    * Search pricing configurations
    */
   search(query: string, status?: string): Promise<LocationPricing[]>;
+
+  /**
+   * Get all distinct cities with pricing
+   */
+  findDistinctCities(): Promise<string[]>;
 }

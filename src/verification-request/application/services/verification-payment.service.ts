@@ -82,6 +82,11 @@ export class VerificationPaymentService {
       const paymentIntent = paymentResult.paymentIntent;
       this.logger.log(`Payment intent created: ${paymentIntent.id}`);
 
+      // Save payment reference to verification request
+      verificationRequest.setPendingPayment(paymentIntent.id);
+      await this.verificationRepository.save(verificationRequest);
+      this.logger.log(`Payment reference ${paymentIntent.id} saved to request ${requestId}`);
+
       return {
         success: true,
         paymentReference: paymentIntent.id,
@@ -204,9 +209,8 @@ export class VerificationPaymentService {
     try {
       this.logger.log(`Processing payment webhook: ${event.type}`);
 
-      const newLocal = event?.headers?.['x-paystack-signature'] ? 'paystack' : 'stripe';
       // Verify webhook signature
-      const provider = newLocal;
+      const provider = event?.headers?.['x-paystack-signature'] ? 'paystack' : 'stripe';
       const signature = event?.headers?.['x-paystack-signature'] || event?.headers?.['stripe-signature'] || '';
       const payload = JSON.stringify(event?.body || event);
 

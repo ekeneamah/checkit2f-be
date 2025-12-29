@@ -60,9 +60,9 @@ export class ServiceArea {
 
   toJSON() {
     return {
-      city: this._city,
-      areas: this._areas,
-      radius: this._radius,
+      city: this.city,
+      areas: this.areas, // Use getter to ensure plain array copy
+      radius: this.radius,
     };
   }
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -9,9 +9,11 @@ import { UserService } from './services/user.service';
 import { JwtAuthService } from './services/jwt-auth.service';
 import { FirebaseAuthService } from './services/firebase-auth.service';
 import { ApiKeyService } from './services/api-key.service';
+import { AdminUserSeederService } from './services/admin-user-seeder.service';
 
 // Controllers
 import { AuthController } from './controllers/auth.controller';
+import { AdminUserController } from './controllers/admin-user.controller';
 
 // Strategies
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -21,7 +23,9 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { InfrastructureModule } from '@/infrastructure/infrastructure.module';
 
-// Infrastructure
+// Agent dependencies
+import { GetAgentUseCase } from '../agent/application/use-cases/get-agent.use-case';
+import { FirestoreAgentRepository } from '../agent/infrastructure/repositories';
 
 /**
  * Authentication Module
@@ -57,6 +61,7 @@ import { InfrastructureModule } from '@/infrastructure/infrastructure.module';
   ],
   controllers: [
     AuthController,
+    AdminUserController,
   ],
   providers: [
     // Core Authentication Services
@@ -65,6 +70,14 @@ import { InfrastructureModule } from '@/infrastructure/infrastructure.module';
     JwtAuthService,
     FirebaseAuthService,
     ApiKeyService,
+    AdminUserSeederService,
+
+    // Agent dependencies for JWT validation
+    {
+      provide: 'IAgentRepository',
+      useClass: FirestoreAgentRepository,
+    },
+    GetAgentUseCase,
 
     // Passport Strategy
     JwtStrategy,

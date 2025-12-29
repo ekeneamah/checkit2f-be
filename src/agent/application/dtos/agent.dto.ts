@@ -115,18 +115,24 @@ export class UpdateAgentProfileDto {
 
 /**
  * Update Service Area DTO
+ * Supports both single city (legacy) and multi-city format
  */
 export class UpdateServiceAreaDto {
-  @ApiProperty({ description: 'Service city', example: 'Lagos' })
+  @ApiProperty({ description: 'Service city (legacy single city)', example: 'Lagos', required: false })
   @IsString()
-  @IsNotEmpty()
-  city: string;
+  @IsOptional()
+  city?: string;
 
-  @ApiProperty({ description: 'Service areas within city', example: ['Lekki', 'Victoria Island'] })
+  @ApiProperty({ description: 'Service areas within city (legacy single city)', example: ['Lekki', 'Victoria Island'], required: false })
   @IsArray()
   @IsString({ each: true })
-  @ArrayMinSize(1)
-  areas: string[];
+  @IsOptional()
+  areas?: string[];
+
+  @ApiProperty({ description: 'Multi-city coverage areas', type: 'array', required: false })
+  @IsArray()
+  @IsOptional()
+  cityAreas?: Array<{ city: string; areas: string[] }>;
 
   @ApiProperty({ description: 'Service radius in kilometers', example: 15, minimum: 1, maximum: 100 })
   @IsNumber()

@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { AgentStatus, AvailabilityStatus, VerificationSpecialization } from '../enums/agent.enum';
 import { ServiceArea } from '../value-objects/service-area.value-object';
+import { MultiCityServiceArea } from '../value-objects/multi-city-service-area.value-object';
 import { AgentRating } from '../value-objects/agent-rating.value-object';
 import { ContactInfo } from '../value-objects/contact-info.value-object';
 
@@ -14,14 +15,13 @@ import { ContactInfo } from '../value-objects/contact-info.value-object';
  * - Exposes behavior through methods
  */
 export class Agent {
-  email: any;
   private constructor(
     private readonly _id: string,
     private readonly _firebaseUid: string,
     private _firstName: string,
     private _lastName: string,
     private _contactInfo: ContactInfo,
-    private _serviceArea: ServiceArea,
+    private _serviceArea: ServiceArea | MultiCityServiceArea,
     private _specializations: VerificationSpecialization[],
     private _status: AgentStatus,
     private _availabilityStatus: AvailabilityStatus,
@@ -45,7 +45,7 @@ export class Agent {
     firstName: string,
     lastName: string,
     contactInfo: ContactInfo,
-    serviceArea: ServiceArea,
+    serviceArea: ServiceArea | MultiCityServiceArea,
     specializations: VerificationSpecialization[],
   ): Agent {
     return new Agent(
@@ -108,11 +108,15 @@ export class Agent {
     return `${this._firstName} ${this._lastName}`;
   }
 
+  get email(): string {
+    return this._contactInfo.email;
+  }
+
   get contactInfo(): ContactInfo {
     return this._contactInfo;
   }
 
-  get serviceArea(): ServiceArea {
+  get serviceArea(): ServiceArea | MultiCityServiceArea {
     return this._serviceArea;
   }
 
@@ -184,7 +188,7 @@ export class Agent {
   /**
    * Update service area
    */
-  updateServiceArea(serviceArea: ServiceArea): void {
+  updateServiceArea(serviceArea: ServiceArea | MultiCityServiceArea): void {
     this._serviceArea = serviceArea;
     this._modifiedAt = new Date();
   }
@@ -363,6 +367,8 @@ export class Agent {
       firstName: this._firstName,
       lastName: this._lastName,
       fullName: this.fullName,
+      email: this._contactInfo.email, // Top-level for convenience
+      phoneNumber: this._contactInfo.phoneNumber, // Top-level for convenience
       contactInfo: this._contactInfo.toJSON(),
       serviceArea: this._serviceArea.toJSON(),
       specializations: this._specializations,
@@ -382,13 +388,21 @@ export class Agent {
    * Deserialize from JSON
    */
   static fromJSON(data: any): Agent {
+    // Determine if it's multi-city or single city format
+    let serviceArea: ServiceArea | MultiCityServiceArea;
+    if (data.serviceArea.cityAreas || (Array.isArray(data.serviceArea) && data.serviceArea.length > 0)) {
+      serviceArea = MultiCityServiceArea.fromJSON(data.serviceArea);
+    } else {
+      serviceArea = ServiceArea.fromJSON(data.serviceArea);
+    }
+
     return new Agent(
       data.id,
       data.firebaseUid,
       data.firstName,
       data.lastName,
       ContactInfo.fromJSON(data.contactInfo),
-      ServiceArea.fromJSON(data.serviceArea),
+      serviceArea,
       data.specializations,
       data.status,
       data.availabilityStatus,

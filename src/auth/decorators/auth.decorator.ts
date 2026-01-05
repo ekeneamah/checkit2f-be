@@ -15,6 +15,7 @@ import { Permissions } from './permissions.decorator';
  * @Get('/protected')
  * protectedRoute() {
  *   return { message: 'Access granted' };
+ * 
  * }
  */
 export function Auth() {

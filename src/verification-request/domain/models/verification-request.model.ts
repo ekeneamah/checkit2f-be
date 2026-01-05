@@ -66,6 +66,10 @@ export interface VerificationRequestModel {
   specialInstructions: string | null;
   attachments: string | null; // JSON array of URLs
 
+  // Instructions (original and AI-refined)
+  originalInstructions: string | null; // Raw user input before AI refinement
+  refinedInstructions: string | null; // JSON array of AI-refined instructions
+
   // Scheduling (for Virtual Tour, Event Attendance)
   isScheduled: boolean;
   scheduledFor: Date | null;
@@ -146,6 +150,7 @@ export class VerificationRequestModelHelper {
     return {
       ...request,
       locationList: request.locationList ? JSON.stringify(request.locationList) : null,
+      refinedInstructions: request.refinedInstructions ? JSON.stringify(request.refinedInstructions) : null,
       searchCriteriaSpecificRequirements: request.searchCriteria?.specificRequirements 
         ? JSON.stringify(request.searchCriteria.specificRequirements) 
         : null,
@@ -172,6 +177,7 @@ export class VerificationRequestModelHelper {
     return {
       ...doc,
       locationList: doc.locationList ? JSON.parse(doc.locationList) : null,
+      refinedInstructions: doc.refinedInstructions ? JSON.parse(doc.refinedInstructions) : null,
       attachments: doc.attachments ? JSON.parse(doc.attachments) : null,
       recurringSchedule: doc.recurringSchedule ? JSON.parse(doc.recurringSchedule) : null,
       virtualTourSettings: doc.virtualTourSettings ? JSON.parse(doc.virtualTourSettings) : null,

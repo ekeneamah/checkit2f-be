@@ -1,0 +1,23 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "verification-requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "assignedAgentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status.status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

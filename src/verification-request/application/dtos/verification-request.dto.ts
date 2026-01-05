@@ -235,6 +235,23 @@ export class CreateVerificationRequestDto {
   @Type(() => PriceDto)
   @IsOptional()
   price?: PriceDto;
+
+  @ApiPropertyOptional({
+    description: 'Original instructions as entered by the user before AI refinement',
+    example: 'Take photos of building\nCheck security\nVerify address',
+  })
+  @IsString()
+  @IsOptional()
+  originalInstructions?: string;
+
+  @ApiPropertyOptional({
+    description: 'AI-refined instructions as an array of clear, actionable items',
+    example: ['Take clear photos of the building from multiple angles', 'Check and document security features', 'Verify the address matches the listing'],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  refinedInstructions?: string[];
 }
 
 /**

@@ -1084,6 +1084,169 @@ export class GeminiAIController {
   }
 
   /**
+   * Refine Instructions - Clean, fix grammar, limit to 10, and format as clear instructions
+   * 
+   * @route POST /api/v1/ai/refine-instructions
+   */
+  @Public()
+  @Post('refine-instructions')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refine verification instructions (Public)',
+    description: `
+      Takes raw user-entered instructions and refines them using AI:
+      - Fixes spelling and grammatical errors
+      - Formats as clear, actionable instructions
+      - Removes duplicates and merges similar/overlapping instructions
+      - Ensures each instruction starts with an action verb
+      - Prioritizes quality over quantity
+    `,
+  })
+  @ApiBody({
+    description: 'Instructions refinement request',
+    examples: {
+      withBullets: {
+        summary: 'Instructions with bullet points',
+        value: {
+          rawInstructions: '• Take clear photo of building\n• Check security features\n• Verify the addres matches',
+          locationType: 'point',
+          locationAddress: '123 Victoria Island, Lagos',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Refined instructions ready for submission',
+  })
+  async refineInstructions(
+    @Body() request: any,
+  ): Promise<any> {
+    this.logger.log(`📝 Refining instructions for ${request.locationType}`);
+    this.logger.log(`📍 Location: ${request.locationAddress || 'not specified'}`);
+    this.logger.log(`📋 Raw instructions length: ${request.rawInstructions?.length || 0}`);
+
+    try {
+      // Parse instructions from raw text
+      const rawLines = request.rawInstructions
+        .split(/[\n\r]+/)
+        .map((line: string) => line.replace(/^[•\-\*\d\.\)]+\s*/, '').trim())
+        .filter((line: string) => line.length > 0);
+
+      const originalCount = rawLines.length;
+      this.logger.log(`📋 Parsed ${originalCount} instructions from input`);
+
+      if (originalCount === 0) {
+        return {
+          success: false,
+          refinedInstructions: [],
+          originalCount: 0,
+          warning: 'No instructions found in the input',
+        };
+      }
+
+      // Build prompt for AI refinement
+      const systemPrompt = `You are an expert at refining verification instructions for field agents.
+
+Your task is to take raw user instructions and:
+1. Fix all spelling and grammatical errors
+2. Make each instruction clear, concise, and actionable
+3. REMOVE duplicates and merge similar/overlapping instructions into one
+4. Ensure each instruction starts with an action verb (Verify, Check, Document, Confirm, Assess, Inspect, Take, etc.)
+5. Remove vague or redundant instructions
+6. Keep each instruction specific and focused on a single task
+
+DEDUPLICATION RULES:
+- If two instructions ask for the same thing with different wording, keep only the clearer one
+- If instructions overlap significantly, combine them into one comprehensive instruction
+- Remove any instruction that is already covered by another
+- Prioritize clarity and specificity over quantity
+
+IMPORTANT:
+- Return ONLY a JSON array of strings, nothing else
+- Each string should be one refined instruction
+- Do not add new instructions that weren't implied in the original
+- Keep instructions specific to the verification context provided
+- Aim for quality over quantity - fewer clear instructions are better than many repetitive ones`;
+
+      const userMessage = `Location Type: ${request.locationType}
+Location Address: ${request.locationAddress || 'Not specified'}
+
+Raw Instructions to Refine:
+${rawLines.map((line: string, i: number) => `${i + 1}. ${line}`).join('\n')}
+
+Return a JSON array with ALL the refined instructions:`;
+
+      // Call Gemini AI for refinement
+      const aiContent = await this.geminiAIService.simpleChat(
+        userMessage,
+        systemPrompt,
+        0.3, // Lower temperature for more consistent output
+        1000,
+      );
+
+      this.logger.log(`✅ AI refinement response: ${aiContent.substring(0, 200)}...`);
+
+      // Parse JSON array from AI response
+      let refinedInstructions: string[] = [];
+      try {
+        // Extract JSON array from response
+        const jsonMatch = aiContent.match(/\[([\s\S]*?)\]/);
+        if (jsonMatch) {
+          refinedInstructions = JSON.parse(jsonMatch[0]);
+        } else {
+          // Fallback: parse line by line
+          refinedInstructions = aiContent
+            .split(/[\n\r]+/)
+            .map((line: string) => line.replace(/^[•\-\*\d\.\)"]+\s*/, '').replace(/["\],]*$/, '').trim())
+            .filter((line: string) => line.length > 5);
+        }
+      } catch (parseError) {
+        this.logger.warn(`⚠️ Failed to parse AI response as JSON, using fallback`);
+        refinedInstructions = rawLines;
+      }
+
+      // Do NOT limit - let frontend handle selection
+      // refinedInstructions = refinedInstructions.slice(0, 10);
+
+      let warning: string | undefined;
+      if (refinedInstructions.length > 10) {
+        warning = `You have ${refinedInstructions.length} instructions. Maximum allowed is 10. Please deselect some to continue.`;
+      }
+
+      const response = {
+        success: true,
+        refinedInstructions,
+        originalCount,
+        warning,
+        changesSummary: refinedInstructions.length === originalCount
+          ? 'Instructions refined for clarity and grammar'
+          : `Refined ${originalCount} instructions into ${refinedInstructions.length} clear items`,
+      };
+
+      this.logger.log(`✅ Refinement complete: ${refinedInstructions.length} instructions`);
+      return response;
+
+    } catch (error) {
+      this.logger.error(`❌ Instruction refinement error: ${error.message}`);
+      
+      // Return original instructions on error
+      const fallbackLines = request.rawInstructions
+        .split(/[\n\r]+/)
+        .map((line: string) => line.replace(/^[•\-\*\d\.\)]+\s*/, '').trim())
+        .filter((line: string) => line.length > 0)
+        .slice(0, 10);
+
+      return {
+        success: false,
+        refinedInstructions: fallbackLines,
+        originalCount: fallbackLines.length,
+        warning: 'AI refinement unavailable. Instructions were kept as entered.',
+      };
+    }
+  }
+
+  /**
    * Build context-aware system prompt for AI assist
    */
   private buildSystemPrompt(

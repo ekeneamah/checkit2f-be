@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { RouterAction } from '../../presentation/dto/map-router.dto';
 
 interface RouterRequest {
@@ -15,72 +16,120 @@ interface RouterResult {
   use_gps_bias?: boolean; // Whether to use GPS for proximity biasing
 }
 
+type AIProvider = 'openai' | 'gemini' | 'none';
+
 /**
- * GPT-4.1 Router Service
- * Uses OpenAI GPT-4.1 to intelligently route search queries to appropriate Google Maps APIs
+ * GPT Router Service
+ * Uses OpenAI GPT-4.1 or Google Gemini to intelligently route search queries to appropriate Google Maps APIs
+ * Falls back gracefully: OpenAI → Gemini → Pattern matching
  */
 @Injectable()
 export class GptRouterService {
   private readonly logger = new Logger(GptRouterService.name);
-  private readonly openai: OpenAI;
+  private readonly openai: OpenAI | null = null;
+  private readonly gemini: GoogleGenerativeAI | null = null;
+  private readonly aiProvider: AIProvider = 'none';
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    const openaiKey = this.configService.get<string>('OPENAI_API_KEY');
+    const geminiKey = this.configService.get<string>('GEMINI_API_KEY');
     
-    if (!apiKey) {
-      this.logger.warn('OPENAI_API_KEY not configured. GPT routing will fail.');
+    if (openaiKey) {
+      this.openai = new OpenAI({ apiKey: openaiKey });
+      this.aiProvider = 'openai';
+      this.logger.log('🤖 GPT Router using OpenAI');
+    } else if (geminiKey) {
+      this.gemini = new GoogleGenerativeAI(geminiKey);
+      this.aiProvider = 'gemini';
+      this.logger.log('🤖 GPT Router using Gemini');
+    } else {
+      this.logger.warn('No AI API key configured. GPT routing will use pattern-based fallback.');
+      this.aiProvider = 'none';
     }
-
-    this.openai = new OpenAI({
-      apiKey: apiKey,
-    });
   }
 
   /**
-   * Route a search query using GPT-4.1 intelligence
+   * Route a search query using AI intelligence
    * Determines the best Google Maps API to use based on query intent
+   * Falls back: OpenAI → Gemini → Pattern matching
    */
   async routeQuery(request: RouterRequest): Promise<RouterResult> {
+    // If no AI provider is configured, use fallback routing
+    if (this.aiProvider === 'none') {
+      return this.fallbackRouting(request);
+    }
+
     try {
-      const systemPrompt = this.buildSystemPrompt();
-      const userPrompt = this.buildUserPrompt(request);
+      this.logger.log(`Routing query: "${request.query}" (GPS: ${request.hasGPS}) via ${this.aiProvider}`);
 
-      this.logger.log(`Routing query: "${request.query}" (GPS: ${request.hasGPS})`);
-
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4.1', // Using GPT-4.1
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 200,
-        response_format: { type: 'json_object' },
-      });
-
-      const response = completion.choices[0]?.message?.content;
-      
-      if (!response) {
-        throw new Error('Empty response from GPT-4');
+      if (this.aiProvider === 'openai' && this.openai) {
+        return await this.routeWithOpenAI(request);
+      } else if (this.aiProvider === 'gemini' && this.gemini) {
+        return await this.routeWithGemini(request);
       }
 
-      const parsed = JSON.parse(response) as RouterResult;
-      
-      this.logger.log(
-        `Routed to: ${parsed.action} (Reason: ${parsed.reasoning})`,
-      );
-
-      return parsed;
+      return this.fallbackRouting(request);
     } catch (error) {
-      this.logger.error(`GPT routing failed: ${error.message}`, error.stack);
+      this.logger.error(`AI routing failed: ${error.message}`, error.stack);
       
-      // Fallback to text search if GPT fails
-      return {
-        action: RouterAction.PLACES_TEXT_SEARCH,
-        message: 'Using default search method',
-        reasoning: 'GPT routing unavailable',
-      };
+      // Fallback to pattern matching if AI fails
+      return this.fallbackRouting(request);
     }
+  }
+
+  /**
+   * Route using OpenAI GPT-4.1
+   */
+  private async routeWithOpenAI(request: RouterRequest): Promise<RouterResult> {
+    const systemPrompt = this.buildSystemPrompt();
+    const userPrompt = this.buildUserPrompt(request);
+
+    const completion = await this.openai!.chat.completions.create({
+      model: 'gpt-4.1',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 200,
+      response_format: { type: 'json_object' },
+    });
+
+    const response = completion.choices[0]?.message?.content;
+    
+    if (!response) {
+      throw new Error('Empty response from OpenAI');
+    }
+
+    const parsed = JSON.parse(response) as RouterResult;
+    this.logger.log(`OpenAI routed to: ${parsed.action} (Reason: ${parsed.reasoning})`);
+    return parsed;
+  }
+
+  /**
+   * Route using Google Gemini
+   */
+  private async routeWithGemini(request: RouterRequest): Promise<RouterResult> {
+    const model = this.gemini!.getGenerativeModel({ 
+      model: 'gemini-2.0-flash',
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 200,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const prompt = `${this.buildSystemPrompt()}\n\n${this.buildUserPrompt(request)}`;
+    const result = await model.generateContent(prompt);
+    const response = result.response.text();
+
+    if (!response) {
+      throw new Error('Empty response from Gemini');
+    }
+
+    const parsed = JSON.parse(response) as RouterResult;
+    this.logger.log(`Gemini routed to: ${parsed.action} (Reason: ${parsed.reasoning})`);
+    return parsed;
   }
 
   private buildSystemPrompt(): string {
@@ -129,5 +178,46 @@ RESPONSE FORMAT (JSON):
 User GPS Available: ${request.hasGPS ? 'Yes' : 'No'}
 
 Determine the best action and respond in JSON format.`;
+  }
+
+  /**
+   * Fallback routing when OpenAI is not configured
+   * Uses simple pattern matching to route queries
+   */
+  private fallbackRouting(request: RouterRequest): RouterResult {
+    const query = request.query.toLowerCase();
+    
+    // Check for "near me" or "nearby" patterns
+    if (query.includes('near me') || query.includes('nearby') || query.includes('closest')) {
+      if (request.hasGPS) {
+        return {
+          action: RouterAction.PLACES_NEARBY_SEARCH,
+          reasoning: 'Fallback: Query contains proximity keywords and GPS available',
+          use_gps_bias: true,
+        };
+      } else {
+        return {
+          action: RouterAction.ASK_FOR_LOCATION,
+          message: 'Please enable location services to search for places near you',
+          reasoning: 'Fallback: Query contains proximity keywords but no GPS',
+        };
+      }
+    }
+    
+    // Check for coordinate patterns
+    if (query.includes('lat') || query.includes('lng') || /\d+\.\d+/.test(query)) {
+      return {
+        action: RouterAction.GEOCODE,
+        reasoning: 'Fallback: Query contains coordinate-like patterns',
+        use_gps_bias: false,
+      };
+    }
+    
+    // Default to text search
+    return {
+      action: RouterAction.PLACES_TEXT_SEARCH,
+      reasoning: 'Fallback: Default text search',
+      use_gps_bias: request.hasGPS,
+    };
   }
 }

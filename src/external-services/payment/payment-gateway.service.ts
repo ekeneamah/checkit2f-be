@@ -56,6 +56,7 @@ export class PaymentGatewayService {
   private readonly logger = new Logger(PaymentGatewayService.name);
   private readonly providers = new Map<PaymentProvider, IPaymentService>();
   private readonly providerConfigs = new Map<PaymentProvider, boolean>();
+  private readonly activeProvider: PaymentProvider;
 
   constructor(
     private readonly configService: ConfigService,
@@ -63,6 +64,10 @@ export class PaymentGatewayService {
     private readonly paystackService: PaystackService,
   ) {
     this.initializeProviders();
+    // Set active provider from env (defaults to PAYSTACK for African market)
+    const envProvider = this.configService.get<string>('ACTIVE_PAYMENT_PROVIDER', 'PAYSTACK').toUpperCase();
+    this.activeProvider = envProvider === 'STRIPE' ? PaymentProvider.STRIPE : PaymentProvider.PAYSTACK;
+    this.logger.log(`💳 Active payment provider: ${this.activeProvider}`);
   }
 
   /**
@@ -271,18 +276,15 @@ export class PaymentGatewayService {
   }
 
   async confirmPayment(request: IConfirmPaymentRequest): Promise<IPaymentResult> {
-    // Try to confirm payment in all providers
-    const errors: string[] = [];
+    // Use the active provider configured from env
+    const provider = this.providers.get(this.activeProvider);
     
-    for (const [providerType, provider] of this.providers) {
-      try {
-        return await provider.confirmPayment(request);
-      } catch (error) {
-        errors.push(`${providerType}: ${error.message}`);
-      }
+    if (!provider) {
+      throw new BadRequestException(`Active payment provider ${this.activeProvider} is not configured`);
     }
     
-    throw new BadRequestException(`Payment confirmation failed in all providers. Errors: ${errors.join(', ')}`);
+    this.logger.log(`Confirming payment with ${this.activeProvider}: ${request.paymentIntentId}`);
+    return await provider.confirmPayment(request);
   }
 
   async getPaymentIntent(paymentIntentId: string): Promise<IPaymentIntent> {

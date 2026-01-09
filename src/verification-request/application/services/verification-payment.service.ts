@@ -7,6 +7,8 @@ import { IPaymentRequest, IPaymentResponse, IPaymentVerification } from '../../d
 import { UpdateVerificationRequestUseCase } from '..';
 import { IVerificationRequestRepository } from '../interfaces/verification-request.repository.interface';
 import { VerificationRequestStatus } from '../../domain/value-objects/verification-status.value-object';
+import { NotificationEmitterService } from '@/external-services/notifications/services/notification-emitter.service';
+import { FirebaseService } from '@/infrastructure/firebase/firebase.service';
 
 /**
  * Payment Integration Service
@@ -33,6 +35,8 @@ export class VerificationPaymentService {
     private readonly verificationRepository: IVerificationRequestRepository,
     private readonly updateVerificationUseCase: UpdateVerificationRequestUseCase,
     private readonly configService: ConfigService,
+    private readonly notificationEmitter: NotificationEmitterService,
+    private readonly firebaseService: FirebaseService,
   ) {}
 
   /**
@@ -138,6 +142,34 @@ export class VerificationPaymentService {
       await this.updateVerificationUseCase.changeStatus(requestId, { status: 'SUBMITTED' } as any);
 
       this.logger.log(`Payment verified and request ${requestId} updated after payment`);
+
+      // Send payment receipt notification to customer and admin
+      const verificationRequest = await this.verificationRepository.findById(requestId);
+      if (verificationRequest) {
+        try {
+          const clientUser = await this.firebaseService.findById('users', verificationRequest.clientId);
+          if (clientUser) {
+            this.notificationEmitter.emitPaymentReceived({
+              requestId,
+              timestamp: new Date(),
+              clientId: verificationRequest.clientId,
+              client: { 
+                email: clientUser.email, 
+                name: clientUser.displayName || clientUser.email,
+              },
+              title: verificationRequest.title,
+              amount: paymentResult.paymentIntent.amount / 100, // Convert from kobo to Naira
+              currency: 'NGN',
+              paymentReference,
+              paymentMethod: 'Paystack',
+            });
+            this.logger.log(`Payment notification emitted for request ${requestId}`);
+          }
+        } catch (notificationError) {
+          // Don't fail the payment verification if notification fails
+          this.logger.warn(`Failed to send payment notification for ${requestId}:`, notificationError);
+        }
+      }
 
       return {
         status: 'success',

@@ -295,13 +295,21 @@ Rules:
 
       const searchResults = await this.normalizeResults(response.data.results, 'google_places');
 
+      // Propagate extracted city/area to results that don't have them
+      // Places Text Search doesn't return address_components, so results won't have city/area
+      const enhancedResults = searchResults.map(result => ({
+        ...result,
+        city: result.city || preSearchResult.city,
+        area: result.area || preSearchResult.area,
+      }));
+
       return {
         action: preSearchResult.action,
         allow_manual_pin: preSearchResult.allow_manual_pin,
         city: preSearchResult.city,
         area: preSearchResult.area,
         pricing: preSearchResult.pricing,
-        results: searchResults
+        results: enhancedResults
       };
     } catch (error) {
       this.logger.error(`Places Text Search failed: ${error.message}`);

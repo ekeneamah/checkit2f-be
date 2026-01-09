@@ -2,6 +2,8 @@ import { Injectable, Inject, Logger, NotFoundException, BadRequestException, For
 import { VerificationRequest, RejectionDetails } from '../../domain';
 import { IVerificationRequestRepository } from '../interfaces/verification-request.repository.interface';
 import { AssignAgentDto, ChangeStatusDto, CustomerRejectVerificationDto, SubmitVerificationDto } from '../dtos/verification-request.dto';
+import { NotificationEmitterService } from '@/external-services/notifications/services/notification-emitter.service';
+import { NotificationHelperService } from '@/external-services/notifications/services/notification-helper.service';
 
 /**
  * Use case for updating verification requests
@@ -14,6 +16,8 @@ export class UpdateVerificationRequestUseCase {
   constructor(
     @Inject('IVerificationRequestRepository')
     private readonly repository: IVerificationRequestRepository,
+    private readonly notificationEmitter: NotificationEmitterService,
+    private readonly notificationHelper: NotificationHelperService,
   ) {}
 
   /**
@@ -40,6 +44,12 @@ export class UpdateVerificationRequestUseCase {
       const updatedRequest = await this.repository.save(request);
       
       this.logger.log(`Agent assigned successfully to request: ${requestId}`);
+
+      // Emit notification event (async, non-blocking)
+      this.emitRequestAssignedNotification(updatedRequest).catch(error => {
+        this.logger.warn(`Failed to emit request assigned notification: ${error.message}`);
+      });
+
       return updatedRequest;
 
     } catch (error) {
@@ -59,6 +69,8 @@ export class UpdateVerificationRequestUseCase {
       if (!request) {
         throw new NotFoundException(`Verification request with ID ${requestId} not found`);
       }
+
+      const previousStatus = request.status.status;
 
       // Handle different status changes using domain logic
       switch (dto.status) {
@@ -91,6 +103,12 @@ export class UpdateVerificationRequestUseCase {
       const updatedRequest = await this.repository.save(request);
       
       this.logger.log(`Status changed successfully for request: ${requestId}`);
+
+      // Emit notification based on new status (async, non-blocking)
+      this.emitStatusChangeNotification(updatedRequest, dto.status, dto.reason).catch(error => {
+        this.logger.warn(`Failed to emit status change notification: ${error.message}`);
+      });
+
       return updatedRequest;
 
     } catch (error) {
@@ -236,6 +254,12 @@ export class UpdateVerificationRequestUseCase {
       const updatedRequest = await this.repository.save(request);
       
       this.logger.log(`Verification accepted successfully by customer for request: ${requestId}`);
+
+      // Emit notification event (async, non-blocking)
+      this.emitCustomerAcceptedNotification(updatedRequest).catch(error => {
+        this.logger.warn(`Failed to emit customer accepted notification: ${error.message}`);
+      });
+
       return updatedRequest;
 
     } catch (error) {
@@ -271,6 +295,12 @@ export class UpdateVerificationRequestUseCase {
       const updatedRequest = await this.repository.save(request);
       
       this.logger.log(`Verification rejected successfully by customer for request: ${requestId}`);
+
+      // Emit notification event (async, non-blocking)
+      this.emitCustomerRejectedNotification(updatedRequest, dto.reason, dto.notes).catch(error => {
+        this.logger.warn(`Failed to emit customer rejected notification: ${error.message}`);
+      });
+
       return updatedRequest;
 
     } catch (error) {
@@ -309,11 +339,235 @@ export class UpdateVerificationRequestUseCase {
       const updatedRequest = await this.repository.save(request);
       
       this.logger.log(`Verification submitted successfully by agent ${agentId} for request: ${requestId}`);
+
+      // Emit notification event (async, non-blocking)
+      this.emitAgentSubmittedNotification(updatedRequest, dto.notes).catch(error => {
+        this.logger.warn(`Failed to emit agent submitted notification: ${error.message}`);
+      });
+
       return updatedRequest;
 
     } catch (error) {
       this.logger.error(`Failed to submit verification for request ${requestId}: ${error.message}`);
       throw error;
+    }
+  }
+
+  // ============================================================================
+  // Private Notification Helper Methods
+  // ============================================================================
+
+  /**
+   * Emit request assigned notification
+   */
+  private async emitRequestAssignedNotification(request: VerificationRequest): Promise<void> {
+    try {
+      const [client, agent] = await Promise.all([
+        this.notificationHelper.getClientDetails(request.clientId),
+        this.notificationHelper.getAgentDetails(request.assignedAgentId),
+      ]);
+
+      this.notificationEmitter.emitRequestAssigned({
+        requestId: request.id,
+        timestamp: new Date(),
+        clientId: request.clientId,
+        client,
+        agentId: request.assignedAgentId,
+        agent,
+        title: request.title,
+        verificationType: request.verificationType?.type || 'VERIFICATION',
+        location: this.notificationHelper.buildLocationInfo(request.location),
+        scheduledDate: request.scheduledDate || undefined,
+        estimatedDuration: request.verificationType?.estimatedDuration?.toString() || undefined,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to emit request assigned notification: ${error.message}`);
+    }
+  }
+
+  /**
+   * Emit status change notification based on new status
+   */
+  private async emitStatusChangeNotification(
+    request: VerificationRequest,
+    newStatus: string,
+    reason?: string,
+  ): Promise<void> {
+    try {
+      const client = await this.notificationHelper.getClientDetails(request.clientId);
+      let agent;
+      if (request.assignedAgentId) {
+        agent = await this.notificationHelper.getAgentDetails(request.assignedAgentId);
+      }
+
+      switch (newStatus) {
+        case 'SUBMITTED':
+          this.notificationEmitter.emitRequestSubmitted({
+            requestId: request.id,
+            timestamp: new Date(),
+            clientId: request.clientId,
+            client,
+            title: request.title,
+            verificationType: request.verificationType?.type || 'VERIFICATION',
+            urgency: request.verificationType?.urgency || 'standard',
+            location: this.notificationHelper.buildLocationInfo(request.location),
+            price: this.notificationHelper.buildPriceInfo(request.price),
+            paymentReference: request.paymentReference || undefined,
+          });
+          break;
+
+        case 'IN_PROGRESS':
+          if (agent) {
+            this.notificationEmitter.emitRequestInProgress({
+              requestId: request.id,
+              timestamp: new Date(),
+              clientId: request.clientId,
+              client,
+              agentId: request.assignedAgentId,
+              agent,
+              title: request.title,
+              location: this.notificationHelper.buildLocationInfo(request.location),
+              startedAt: new Date(),
+            });
+          }
+          break;
+
+        case 'COMPLETED':
+          if (agent) {
+            this.notificationEmitter.emitRequestCompleted({
+              requestId: request.id,
+              timestamp: new Date(),
+              clientId: request.clientId,
+              client,
+              agentId: request.assignedAgentId,
+              agent,
+              title: request.title,
+              verificationType: request.verificationType?.type || 'VERIFICATION',
+              location: this.notificationHelper.buildLocationInfo(request.location),
+              completedAt: new Date(),
+              notes: request.notes || undefined,
+            });
+          }
+          break;
+
+        case 'CANCELLED':
+          this.notificationEmitter.emitRequestCancelled({
+            requestId: request.id,
+            timestamp: new Date(),
+            clientId: request.clientId,
+            client,
+            agentId: request.assignedAgentId || undefined,
+            agent,
+            title: request.title,
+            reason: reason || 'No reason provided',
+            cancelledBy: 'admin',
+          });
+          break;
+
+        case 'REJECTED':
+          this.notificationEmitter.emitRequestRejected({
+            requestId: request.id,
+            timestamp: new Date(),
+            clientId: request.clientId,
+            client,
+            agentId: request.assignedAgentId || undefined,
+            agent,
+            title: request.title,
+            reason: reason || 'No reason provided',
+            rejectedBy: 'admin',
+          });
+          break;
+      }
+    } catch (error) {
+      this.logger.error(`Failed to emit status change notification: ${error.message}`);
+    }
+  }
+
+  /**
+   * Emit customer accepted notification
+   */
+  private async emitCustomerAcceptedNotification(request: VerificationRequest): Promise<void> {
+    try {
+      const [client, agent] = await Promise.all([
+        this.notificationHelper.getClientDetails(request.clientId),
+        this.notificationHelper.getAgentDetails(request.assignedAgentId),
+      ]);
+
+      this.notificationEmitter.emitCustomerAccepted({
+        requestId: request.id,
+        timestamp: new Date(),
+        clientId: request.clientId,
+        client,
+        agentId: request.assignedAgentId,
+        agent,
+        title: request.title,
+        verificationType: request.verificationType?.type || 'VERIFICATION',
+        acceptedAt: new Date(),
+      });
+    } catch (error) {
+      this.logger.error(`Failed to emit customer accepted notification: ${error.message}`);
+    }
+  }
+
+  /**
+   * Emit customer rejected notification
+   */
+  private async emitCustomerRejectedNotification(
+    request: VerificationRequest,
+    reason: string,
+    notes?: string,
+  ): Promise<void> {
+    try {
+      const [client, agent] = await Promise.all([
+        this.notificationHelper.getClientDetails(request.clientId),
+        this.notificationHelper.getAgentDetails(request.assignedAgentId),
+      ]);
+
+      this.notificationEmitter.emitCustomerRejected({
+        requestId: request.id,
+        timestamp: new Date(),
+        clientId: request.clientId,
+        client,
+        agentId: request.assignedAgentId,
+        agent,
+        title: request.title,
+        verificationType: request.verificationType?.type || 'VERIFICATION',
+        reason,
+        notes,
+        rejectedAt: new Date(),
+      });
+    } catch (error) {
+      this.logger.error(`Failed to emit customer rejected notification: ${error.message}`);
+    }
+  }
+
+  /**
+   * Emit agent submitted notification
+   */
+  private async emitAgentSubmittedNotification(
+    request: VerificationRequest,
+    notes?: string,
+  ): Promise<void> {
+    try {
+      const [client, agent] = await Promise.all([
+        this.notificationHelper.getClientDetails(request.clientId),
+        this.notificationHelper.getAgentDetails(request.assignedAgentId),
+      ]);
+
+      this.notificationEmitter.emitAgentSubmittedReport({
+        requestId: request.id,
+        timestamp: new Date(),
+        agentId: request.assignedAgentId,
+        agent,
+        clientId: request.clientId,
+        client,
+        title: request.title,
+        verificationType: request.verificationType?.type || 'VERIFICATION',
+        completedAt: new Date(),
+        notes,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to emit agent submitted notification: ${error.message}`);
     }
   }
 }

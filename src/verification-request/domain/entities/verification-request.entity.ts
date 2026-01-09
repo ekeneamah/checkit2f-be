@@ -26,6 +26,7 @@ export class VerificationRequest extends BaseEntity {
   private _paymentId?: string;
   private _paymentReference?: string;
   private _paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  private _paidAt?: Date;
   private _statusHistory: VerificationStatus[];
   private _customerResponseStatus?: 'ACCEPTED' | 'REJECTED';
   private _customerResponseDate?: Date;
@@ -123,6 +124,10 @@ export class VerificationRequest extends BaseEntity {
 
   get paymentStatus(): string {
     return this._paymentStatus;
+  }
+
+  get paidAt(): Date | undefined {
+    return this._paidAt;
   }
 
   get statusHistory(): VerificationStatus[] {
@@ -386,6 +391,12 @@ export class VerificationRequest extends BaseEntity {
   public updatePayment(paymentId: string, paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded'): void {
     this._paymentId = paymentId;
     this._paymentStatus = paymentStatus;
+    
+    // Set paidAt timestamp when payment is successful
+    if (paymentStatus === 'paid' && !this._paidAt) {
+      this._paidAt = new Date();
+    }
+    
     this.updateModified();
     
     console.log(`Payment updated for verification request: ${this.id}. Status: ${paymentStatus}`);
@@ -452,6 +463,7 @@ export class VerificationRequest extends BaseEntity {
       paymentId: this._paymentId,
       paymentReference: this._paymentReference,
       paymentStatus: this._paymentStatus,
+      paidAt: this._paidAt?.toISOString(),
       statusHistory: this._statusHistory.map(status => status.toJSON()),
       customerResponseStatus: this._customerResponseStatus,
       customerResponseDate: this._customerResponseDate?.toISOString(),
@@ -486,6 +498,7 @@ export class VerificationRequest extends BaseEntity {
     request._paymentId = data.paymentId;
     request._paymentReference = data.paymentReference;
     request._paymentStatus = data.paymentStatus || 'pending';
+    request._paidAt = data.paidAt ? new Date(data.paidAt) : undefined;
     request._statusHistory = data.statusHistory?.map((s: any) => VerificationStatus.fromJSON(s)) || [];
     request._customerResponseStatus = data.customerResponseStatus;
     request._customerResponseDate = data.customerResponseDate ? new Date(data.customerResponseDate) : undefined;

@@ -2,6 +2,8 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { VerificationRequest, Location, Price, VerificationType, VerificationRequestStatus } from '../../domain';
 import { IVerificationRequestRepository } from '../interfaces/verification-request.repository.interface';
 import { CreateVerificationRequestDto, UpdateVerificationRequestDto } from '../dtos/verification-request.dto';
+import { NotificationEmitterService } from '@/external-services/notifications/services/notification-emitter.service';
+import { NotificationHelperService } from '@/external-services/notifications/services/notification-helper.service';
 
 /**
  * Use case for creating verification requests
@@ -14,6 +16,8 @@ export class CreateVerificationRequestUseCase {
   constructor(
     @Inject('IVerificationRequestRepository')
     private readonly repository: IVerificationRequestRepository,
+    private readonly notificationEmitter: NotificationEmitterService,
+    private readonly notificationHelper: NotificationHelperService,
   ) {}
 
   /**
@@ -93,11 +97,45 @@ export class CreateVerificationRequestUseCase {
       const savedRequest = await this.repository.save(verificationRequest);
 
       this.logger.log(`Verification request created successfully: ${savedRequest.id}`);
+
+      // Emit notification event (async, non-blocking)
+      this.emitRequestCreatedNotification(savedRequest, dto).catch(error => {
+        this.logger.warn(`Failed to emit request created notification: ${error.message}`);
+      });
+
       return savedRequest;
 
     } catch (error) {
       this.logger.error(`Failed to create verification request: ${error.message}`, error.stack);
       throw new Error(`Failed to create verification request: ${error.message}`);
+    }
+  }
+
+  /**
+   * Emit request created notification
+   */
+  private async emitRequestCreatedNotification(
+    request: VerificationRequest,
+    dto: CreateVerificationRequestDto,
+  ): Promise<void> {
+    try {
+      const client = await this.notificationHelper.getClientDetails(request.clientId);
+      
+      this.notificationEmitter.emitRequestCreated({
+        requestId: request.id,
+        timestamp: new Date(),
+        clientId: request.clientId,
+        client,
+        title: request.title,
+        description: request.description,
+        verificationType: dto.verificationType.type,
+        urgency: dto.verificationType.urgency,
+        location: this.notificationHelper.buildLocationInfo(dto.location),
+        price: this.notificationHelper.buildPriceInfo(request.price),
+        scheduledDate: dto.scheduledDate ? new Date(dto.scheduledDate) : undefined,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to emit request created notification: ${error.message}`);
     }
   }
 }

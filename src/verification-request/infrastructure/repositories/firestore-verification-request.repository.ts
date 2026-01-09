@@ -522,19 +522,46 @@ export class FirestoreVerificationRequestRepository implements IVerificationRequ
   }
 
   /**
+   * Remove undefined values from an object recursively
+   * Firestore doesn't accept undefined values even with ignoreUndefinedProperties in some cases
+   */
+  private stripUndefined(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return null;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.stripUndefined(item));
+    }
+    if (typeof obj === 'object' && !(obj instanceof Date) && !(obj instanceof admin.firestore.Timestamp)) {
+      const result: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+          result[key] = this.stripUndefined(value);
+        }
+      }
+      return result;
+    }
+    return obj;
+  }
+
+  /**
    * Convert entity to Firestore document
    */
   private entityToFirestore(entity: VerificationRequest): any {
     const data = entity.toJSON();
     
-    return {
+    const firestoreData = {
       ...data,
       createdAt: admin.firestore.Timestamp.fromDate(entity.createdAt),
       modifiedAt: admin.firestore.Timestamp.fromDate(entity.modifiedAt),
       scheduledDate: data.scheduledDate ? admin.firestore.Timestamp.fromDate(new Date(data.scheduledDate)) : null,
       estimatedCompletionDate: data.estimatedCompletionDate ? admin.firestore.Timestamp.fromDate(new Date(data.estimatedCompletionDate)) : null,
       actualCompletionDate: data.actualCompletionDate ? admin.firestore.Timestamp.fromDate(new Date(data.actualCompletionDate)) : null,
+      paidAt: data.paidAt ? admin.firestore.Timestamp.fromDate(new Date(data.paidAt)) : null,
     };
+
+    // Strip undefined values to prevent Firestore errors
+    return this.stripUndefined(firestoreData);
   }
 
   /**
@@ -550,6 +577,7 @@ export class FirestoreVerificationRequestRepository implements IVerificationRequ
       scheduledDate: data.scheduledDate?.toDate()?.toISOString(),
       estimatedCompletionDate: data.estimatedCompletionDate?.toDate()?.toISOString(),
       actualCompletionDate: data.actualCompletionDate?.toDate()?.toISOString(),
+      paidAt: data.paidAt?.toDate()?.toISOString(),
     };
 
     return VerificationRequest.fromJSON(entityData);

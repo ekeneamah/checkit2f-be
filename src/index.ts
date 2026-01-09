@@ -117,7 +117,6 @@ export const api = onRequest(
     maxInstances: 10,
     minInstances: 0,
     region: 'us-central1',
-   
     invoker: 'public' // Allow unauthenticated access
   },
   async (req, res) => {

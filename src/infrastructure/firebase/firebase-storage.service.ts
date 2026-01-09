@@ -24,8 +24,10 @@ export class FirebaseStorageService {
     private readonly configService: ConfigService,
   ) {
     // Get bucket name from environment or use default
+    // Support both FIREBASE_* (local) and FB_* (production - Firebase reserves FIREBASE_ prefix)
+    const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID') || this.configService.get<string>('FB_PROJECT_ID');
     const bucketName = this.configService.get<string>('FIREBASE_STORAGE_BUCKET') 
-      || this.configService.get<string>('FIREBASE_PROJECT_ID') + '.appspot.com';
+      || projectId + '.appspot.com';
     
     this.bucket = admin.storage().bucket(bucketName);
     this.logger.log(`Firebase Storage Service initialized with bucket: ${bucketName}`);

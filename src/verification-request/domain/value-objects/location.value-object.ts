@@ -12,15 +12,18 @@ export class Location {
     private readonly _placeId?: string,
     private readonly _landmark?: string,
     private readonly _accessInstructions?: string,
+    private readonly _name?: string,
   ) {
     this.validateAddress();
-    this.validateCity();
-    this.validateArea();
     this.validateCoordinates();
   }
 
   get address(): string {
     return this._address;
+  }
+
+  get name(): string | undefined {
+    return this._name;
   }
 
   get city(): string {
@@ -57,24 +60,6 @@ export class Location {
   private validateAddress(): void {
     if (!this._address || this._address.trim().length < 10) {
       throw new Error('Address must be at least 10 characters long');
-    }
-  }
-
-  /**
-   * Validate city
-   */
-  private validateCity(): void {
-    if (!this._city || this._city.trim().length === 0) {
-      throw new Error('City is required');
-    }
-  }
-
-  /**
-   * Validate area
-   */
-  private validateArea(): void {
-    if (!this._area || this._area.trim().length === 0) {
-      throw new Error('Area is required');
     }
   }
 
@@ -143,6 +128,7 @@ export class Location {
   public toJSON(): Record<string, any> {
     return {
       address: this._address,
+      name: this._name,
       city: this._city,
       area: this._area,
       latitude: this._latitude,
@@ -166,6 +152,7 @@ export class Location {
       data.placeId,
       data.landmark,
       data.accessInstructions,
+      data.name,
     );
   }
 }

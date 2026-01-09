@@ -16,21 +16,29 @@ export class LocationDto {
   @IsNotEmpty()
   address: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    description: 'Business or place name',
+    example: 'HOTEL DE DAMIRA',
+  })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({
     description: 'City where the verification will take place',
     example: 'Lagos',
   })
   @IsString()
-  @IsNotEmpty()
-  city: string;
+  @IsOptional()
+  city?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Area/district within the city',
     example: 'Lekki',
   })
   @IsString()
-  @IsNotEmpty()
-  area: string;
+  @IsOptional()
+  area?: string;
 
   @ApiProperty({
     description: 'Latitude coordinate',

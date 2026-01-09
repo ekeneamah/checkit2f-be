@@ -43,9 +43,10 @@ export class FirebaseConfigService {
       }
 
       // For local development, use environment variables
-      const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
-      const clientEmail = this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
-      const privateKey = this.configService.get<string>('FIREBASE_PRIVATE_KEY');
+      // Support both FIREBASE_* (local) and FB_* (production - Firebase reserves FIREBASE_ prefix)
+      const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID') || this.configService.get<string>('FB_PROJECT_ID');
+      const clientEmail = this.configService.get<string>('FIREBASE_CLIENT_EMAIL') || this.configService.get<string>('FB_CLIENT_EMAIL');
+      const privateKey = this.configService.get<string>('FIREBASE_PRIVATE_KEY') || this.configService.get<string>('FB_PRIVATE_KEY');
 
       // In development, allow running without Firebase credentials
       if (environment === 'development' && !clientEmail && !privateKey) {
@@ -76,7 +77,7 @@ export class FirebaseConfigService {
         this.logger.log('✅ Firebase initialized with service account credentials');
       } else {
         // Development configuration with application default credentials
-        const devProjectId = this.configService.get<string>('FIREBASE_PROJECT_ID', 'checkit24-dev');
+        const devProjectId = this.configService.get<string>('FIREBASE_PROJECT_ID') || this.configService.get<string>('FB_PROJECT_ID') || 'checkit24-dev';
         
         admin.initializeApp({
           projectId: devProjectId,
@@ -198,7 +199,7 @@ export class FirebaseConfigService {
   public async healthCheck(): Promise<{ status: string; timestamp: Date; projectId?: string }> {
     try {
       const isConnected = await this.testConnection();
-      const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
+      const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID') || this.configService.get<string>('FB_PROJECT_ID');
       
       return {
         status: isConnected ? 'healthy' : 'unhealthy',

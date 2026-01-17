@@ -13,7 +13,16 @@ import { FirebaseModule } from './shared/config/firebase.module';
 import { AuthModule } from './auth/auth.module';
 import { ExternalServicesModule } from './external-services/external-services.module';
 import { AgentModule } from './agent/agent.module';
+import { CompanyModule } from './company/company.module';
 import { HealthController } from './health/health.controller';
+import { KycModule } from './kyc/kyc.module';
+
+// Field Agent Feature Modules
+import { TrackingModule } from './tracking/tracking.module';
+import { EvidenceModule } from './evidence/evidence.module';
+import { SafetyModule } from './safety/safety.module';
+import { EarningsModule } from './earnings/earnings.module';
+import { SyncModule } from './sync/sync.module';
 
 import { validateEnvironmentConfig } from './config/env.validation';
 
@@ -69,8 +78,17 @@ import { RolesGuard } from './auth/guards/roles.guard';
     VerificationRequestModule,
     UserModule,
     AgentModule,
+    CompanyModule,
     PaymentModule,
     NotificationModule,
+    KycModule,
+
+    // Field Agent Feature Modules
+    TrackingModule,
+    EvidenceModule,
+    SafetyModule,
+    EarningsModule,
+    SyncModule,
   ],
   controllers: [HealthController],
   providers: [

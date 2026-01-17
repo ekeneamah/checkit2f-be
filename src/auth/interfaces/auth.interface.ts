@@ -6,8 +6,12 @@ export enum UserRole {
   ADMIN = 'ADMIN', 
   AGENT_MANAGER = 'AGENT_MANAGER',
   AGENT = 'AGENT',
+  COMPANY = 'COMPANY',
+  RIDER = 'RIDER',
   CLIENT = 'CLIENT',
   GUEST = 'GUEST',
+  BANK = 'BANK',
+  QA_REVIEWER = 'QA_REVIEWER',
 }
 
 /**
@@ -115,6 +119,41 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   
   [UserRole.GUEST]: [
     Permission.READ_VERIFICATION_REQUEST,
+    Permission.READ_USER,
+  ],
+
+  [UserRole.COMPANY]: [
+    Permission.CREATE_USER,
+    Permission.READ_USER,
+    Permission.UPDATE_USER,
+    Permission.READ_VERIFICATION_REQUEST,
+    Permission.UPDATE_VERIFICATION_REQUEST,
+    Permission.ACCEPT_ASSIGNMENT,
+    Permission.VIEW_ANALYTICS,
+  ],
+
+  [UserRole.RIDER]: [
+    Permission.READ_VERIFICATION_REQUEST,
+    Permission.UPDATE_VERIFICATION_REQUEST,
+    Permission.ACCEPT_ASSIGNMENT,
+    Permission.COMPLETE_VERIFICATION,
+    Permission.UPLOAD_REPORT,
+    Permission.READ_USER,
+  ],
+
+  [UserRole.BANK]: [
+    Permission.CREATE_VERIFICATION_REQUEST,
+    Permission.READ_VERIFICATION_REQUEST,
+    Permission.UPDATE_VERIFICATION_REQUEST,
+    Permission.VIEW_PAYMENT_DETAILS,
+    Permission.VIEW_ANALYTICS,
+    Permission.READ_USER,
+  ],
+
+  [UserRole.QA_REVIEWER]: [
+    Permission.READ_VERIFICATION_REQUEST,
+    Permission.UPDATE_VERIFICATION_REQUEST,
+    Permission.VIEW_ANALYTICS,
     Permission.READ_USER,
   ],
 };

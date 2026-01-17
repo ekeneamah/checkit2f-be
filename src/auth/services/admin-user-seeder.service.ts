@@ -34,6 +34,12 @@ export class AdminUserSeederService {
         displayName: 'Admin Support',
         role: 'ADMIN',
       },
+      {
+        email: 'bank@checkit24.com',
+        password: 'Bank@2024!',
+        displayName: 'Demo Bank Staff',
+        role: 'BANK',
+      },
     ];
 
     for (const userData of adminUsers) {

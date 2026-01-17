@@ -27,6 +27,11 @@ export class GoogleMapsService {
   private readonly logger = new Logger(GoogleMapsService.name);
   private readonly apiKey: string;
   private readonly axios: AxiosInstance;
+  
+  // Cache for cities list from database
+  private citiesCache: string[] | null = null;
+  private citiesCacheExpiry: Date | null = null;
+  private readonly CACHE_TTL_MINUTES = 60; // Refresh every hour
 
   constructor(
     private readonly configService: ConfigService,
@@ -43,6 +48,39 @@ export class GoogleMapsService {
       baseURL: 'https://maps.googleapis.com/maps/api',
       timeout: 10000,
     });
+  }
+
+  /**
+   * Get cities from database with caching
+   */
+  private async getCachedCities(): Promise<string[]> {
+    const now = new Date();
+    
+    if (this.citiesCache && this.citiesCacheExpiry && this.citiesCacheExpiry > now) {
+      return this.citiesCache;
+    }
+
+    try {
+      this.citiesCache = await this.locationPricingService.getDistinctCities();
+      this.citiesCacheExpiry = new Date(now.getTime() + this.CACHE_TTL_MINUTES * 60 * 1000);
+      this.logger.log(`Cities cache refreshed: ${this.citiesCache.length} cities`);
+      return this.citiesCache;
+    } catch (error) {
+      this.logger.warn(`Failed to fetch cities from database: ${error.message}`);
+      // Return default cities if database fetch fails
+      return this.getDefaultCities();
+    }
+  }
+
+  /**
+   * Default fallback cities if database is unavailable
+   */
+  private getDefaultCities(): string[] {
+    return [
+      'Lagos', 'Abuja', 'Port Harcourt', 'Kano', 'Ibadan', 'Kaduna',
+      'Benin City', 'Enugu', 'Warri', 'Calabar', 'Jos', 'Ilorin',
+      'Owerri', 'Abeokuta', 'Onitsha', 'Uyo', 'Asaba', 'Yenagoa', 'Aba'
+    ];
   }
 
   /**
@@ -103,22 +141,43 @@ export class GoogleMapsService {
    * Use Gemini AI to extract area and city from formatted address when Google components fail
    */
   private async extractAreaWithGemini(formattedAddress: string): Promise<{ area: string | null; city: string | null }> {
-    const prompt = `Extract the area/neighborhood and city from this Nigerian address:
+    // Get cities from database
+    const cities = await this.getCachedCities();
+    const citiesList = cities.join(', ');
+    
+    const prompt = `Extract the area/neighborhood and city from this Nigerian address or search query:
 "${formattedAddress}"
 
 Return only a JSON response in this exact format:
 {"area": "area_name_or_null", "city": "city_name"}
+
+IMPORTANT - Nigerian Cities (these are CITIES, not areas):
+${citiesList}
+
+Also recognize variations like:
+- "PH" or "Portharcourt" = "Port Harcourt"
+- "FCT" = "Abuja"
+
+If a user mentions ONLY a city name (like "Port Harcourt" or "Lagos") without a specific area, return area as null.
 
 Examples:
 - "18 Idris Akere St, Egan igando, Lagos 102213, Lagos" → {"area": "Igando", "city": "Lagos"}
 - "Victoria Island, Lagos" → {"area": "Victoria Island", "city": "Lagos"}
 - "Plot 123, Garki, Abuja" → {"area": "Garki", "city": "Abuja"}
 - "Lekki Phase 1, Lagos" → {"area": "Lekki Phase 1", "city": "Lagos"}
+- "Find me a hotel in Port Harcourt" → {"area": null, "city": "Port Harcourt"}
+- "3-star hotel Port Harcourt" → {"area": null, "city": "Port Harcourt"}
+- "restaurant in Rumuokoro Port Harcourt" → {"area": "Rumuokoro", "city": "Port Harcourt"}
+- "hotel in GRA Phase 2 Port Harcourt" → {"area": "GRA Phase 2", "city": "Port Harcourt"}
+- "find me a hotel in Lagos" → {"area": null, "city": "Lagos"}
+- "hotel Ikeja Lagos" → {"area": "Ikeja", "city": "Lagos"}
 
 Rules:
-- If no clear area/neighborhood exists, set area to null
-- Always extract the main city (Lagos, Abuja, etc.)
-- Prefer the most specific area name when multiple exist`;
+- If the query mentions ONLY a city name without a specific neighborhood/area, set area to null
+- The cities listed above are CITIES not areas
+- Areas are neighborhoods within cities (e.g., Victoria Island, Ikeja, Lekki, GRA, Rumuokoro)
+- Always extract the main city correctly
+- Match city names case-insensitively`;
 
     try {
       const response = await this.geminiService.simpleChat(

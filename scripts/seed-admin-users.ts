@@ -54,6 +54,12 @@ const adminUsers = [
     role: 'ADMIN',
     displayName: 'Admin Support',
   },
+  {
+    email: 'bank@checkit24.com',
+    password: 'Bank@2024!',
+    role: 'BANK',
+    displayName: 'Demo Bank Staff',
+  },
 ];
 
 async function seedAdminUsers() {

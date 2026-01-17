@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { FirebaseConfigService } from '@/shared/config/firebase-config.service';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import {
@@ -46,9 +47,12 @@ export class EvidenceCollectionService {
   private readonly MIN_BRIGHTNESS_SCORE = 30;
   private readonly MAX_BRIGHTNESS_SCORE = 95;
 
-  constructor(private readonly configService: ConfigService) {
-    this.db = admin.firestore();
-    this.storage = admin.storage();
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly firebaseConfig: FirebaseConfigService,
+  ) {
+    this.db = this.firebaseConfig.firestore;
+    this.storage = this.firebaseConfig.admin.storage();
     this.EVIDENCE_BUCKET = this.configService.get<string>('FIREBASE_STORAGE_BUCKET', 'checkit24-evidence');
     this.logger.log('📸 Evidence Collection Service initialized');
   }

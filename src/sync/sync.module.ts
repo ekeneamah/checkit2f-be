@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { FirebaseModule } from '@/shared/config/firebase.module';
 import { SyncService } from './application/services/sync.service';
 import { SyncController } from './infrastructure/controllers/sync.controller';
 
@@ -12,7 +13,7 @@ import { SyncController } from './infrastructure/controllers/sync.controller';
  * @author CheckIT24 Development Team
  */
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, FirebaseModule],
   controllers: [SyncController],
   providers: [SyncService],
   exports: [SyncService],

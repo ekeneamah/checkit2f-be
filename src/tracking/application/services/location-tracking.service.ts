@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { FirebaseConfigService } from '@/shared/config/firebase-config.service';
 import * as admin from 'firebase-admin';
 import { GoogleMapsService } from '../../../external-services/google-maps/google-maps.service';
 import {
@@ -45,9 +46,10 @@ export class LocationTrackingService {
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly firebaseConfig: FirebaseConfigService,
     private readonly googleMapsService: GoogleMapsService,
   ) {
-    this.db = admin.firestore();
+    this.db = this.firebaseConfig.firestore;
     this.logger.log('📍 Location Tracking Service initialized');
   }
 

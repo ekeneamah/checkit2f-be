@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { FirebaseModule } from '@/shared/config/firebase.module';
 import { EarningsService } from './application/services/earnings.service';
 import { EarningsController } from './infrastructure/controllers/earnings.controller';
 
@@ -12,7 +13,7 @@ import { EarningsController } from './infrastructure/controllers/earnings.contro
  * @author CheckIT24 Development Team
  */
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, FirebaseModule],
   controllers: [EarningsController],
   providers: [EarningsService],
   exports: [EarningsService],

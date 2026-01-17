@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { FirebaseConfigService } from '@/shared/config/firebase-config.service';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import {
@@ -37,8 +38,11 @@ export class EarningsService {
   private readonly PLATFORM_COMMISSION = 0.15; // 15% platform fee
   private readonly COMPANY_COMMISSION = 0.10; // 10% company commission from rider earnings
 
-  constructor(private readonly configService: ConfigService) {
-    this.db = admin.firestore();
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly firebaseConfig: FirebaseConfigService,
+  ) {
+    this.db = this.firebaseConfig.firestore;
     this.logger.log('💰 Earnings Service initialized');
   }
 

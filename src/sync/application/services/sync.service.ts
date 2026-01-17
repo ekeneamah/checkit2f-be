@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { FirebaseConfigService } from '@/shared/config/firebase-config.service';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import {
@@ -30,8 +31,11 @@ export class SyncService {
   private readonly SYNC_SESSIONS_COLLECTION = 'sync_sessions';
   private readonly DEVICE_STATE_COLLECTION = 'device_sync_states';
 
-  constructor(private readonly configService: ConfigService) {
-    this.db = admin.firestore();
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly firebaseConfig: FirebaseConfigService,
+  ) {
+    this.db = this.firebaseConfig.firestore;
     this.logger.log('🔄 Sync Service initialized');
   }
 

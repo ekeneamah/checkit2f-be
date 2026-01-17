@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { FirebaseConfigService } from '@/shared/config/firebase-config.service';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import {
@@ -35,8 +36,11 @@ export class SafetyService {
   private readonly SETTINGS_COLLECTION = 'safety_settings';
   private readonly LIVE_SESSIONS_COLLECTION = 'live_location_sessions';
 
-  constructor(private readonly configService: ConfigService) {
-    this.db = admin.firestore();
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly firebaseConfig: FirebaseConfigService,
+  ) {
+    this.db = this.firebaseConfig.firestore;
     this.logger.log('🆘 Safety Service initialized');
   }
 

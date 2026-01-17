@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { FirebaseModule } from '@/shared/config/firebase.module';
 import { EvidenceCollectionService } from './application/services/evidence-collection.service';
 import { EvidenceController } from './infrastructure/controllers/evidence.controller';
 
@@ -12,7 +13,7 @@ import { EvidenceController } from './infrastructure/controllers/evidence.contro
  * @author CheckIT24 Development Team
  */
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, FirebaseModule],
   controllers: [EvidenceController],
   providers: [EvidenceCollectionService],
   exports: [EvidenceCollectionService],

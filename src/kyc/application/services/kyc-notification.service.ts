@@ -1,10 +1,11 @@
 /**
  * KYC Notification Service
- * Handles all SMS and notification operations for KYC workflow
+ * Handles all SMS and Email notification operations for KYC workflow
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SMSService } from '@/external-services/notifications/sms/sms.service';
+import { EmailService } from '@/external-services/notifications/email/email.service';
 import { KycRequest } from '../../domain';
 
 /**
@@ -98,6 +99,7 @@ export class KycNotificationService {
 
   constructor(
     private readonly smsService: SMSService,
+    private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {
     this.baseUrl = this.configService.get<string>('APP_BASE_URL', 'https://checkit24.com');
@@ -162,18 +164,117 @@ export class KycNotificationService {
   // =========================================================================
 
   /**
-   * Send confirmation request SMS to customer
+   * Send confirmation request to customer via SMS and Email
    */
   async sendConfirmationRequest(request: KycRequest): Promise<void> {
+    const confirmationUrl = this.getConfirmationUrl(request);
+    const bankName = request.bankId; // TODO: Fetch bank name from bank service
+
+    // Send SMS
     await this.sendSms(
       request.customer.phoneNumber,
       KycSmsTemplate.CONFIRMATION_REQUEST,
       {
         customerName: request.customer.fullName,
-        bankName: request.bankId, // TODO: Fetch bank name from bank service
-        confirmationUrl: this.getConfirmationUrl(request),
+        bankName,
+        confirmationUrl,
       },
     );
+
+    // Send Email if customer has email
+    if (request.customer.email) {
+      await this.sendConfirmationEmail(request, confirmationUrl, bankName);
+    }
+  }
+
+  /**
+   * Send confirmation email to customer
+   */
+  private async sendConfirmationEmail(
+    request: KycRequest, 
+    confirmationUrl: string,
+    bankName: string,
+  ): Promise<void> {
+    try {
+      await this.emailService.sendEmail({
+        to: { email: request.customer.email!, name: request.customer.fullName },
+        subject: `KYC Verification Request from ${bankName}`,
+        htmlContent: this.getConfirmationEmailTemplate(request.customer.fullName, bankName, confirmationUrl),
+        textContent: `Dear ${request.customer.fullName},\n\n${bankName} has initiated a KYC verification for your account.\n\nPlease confirm your verification request by clicking the link below:\n${confirmationUrl}\n\nThis link expires in 24 hours.\n\nIf you did not request this verification, please ignore this email.\n\nBest regards,\nCheckIT24 Team`,
+      });
+      this.logger.log(`Confirmation email sent to ${this.maskEmail(request.customer.email!)}`);
+    } catch (error) {
+      this.logger.error(`Failed to send confirmation email to ${this.maskEmail(request.customer.email!)}`, error);
+      // Don't throw - email failures shouldn't block the workflow
+    }
+  }
+
+  /**
+   * Get HTML email template for confirmation
+   */
+  private getConfirmationEmailTemplate(customerName: string, bankName: string, confirmationUrl: string): string {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>KYC Verification Request</title>
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+        <tr>
+          <td style="background-color: #1a1a2e; padding: 30px; text-align: center;">
+            <h1 style="color: #f59e0b; margin: 0; font-size: 28px;">CheckIT24</h1>
+            <p style="color: #94a3b8; margin: 10px 0 0 0; font-size: 14px;">KYC Verification Service</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 40px 30px;">
+            <h2 style="color: #1a1a2e; margin: 0 0 20px 0; font-size: 22px;">Hello ${customerName},</h2>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 20px 0;">
+              <strong>${bankName}</strong> has initiated a KYC (Know Your Customer) verification for your account.
+            </p>
+            <p style="color: #4b5563; line-height: 1.6; margin: 0 0 30px 0;">
+              To proceed with the verification, please click the button below to confirm your details and schedule a convenient time for our verification agent to visit.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="text-align: center;">
+                  <a href="${confirmationUrl}" style="display: inline-block; background-color: #f59e0b; color: #1a1a2e; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Confirm Verification</a>
+                </td>
+              </tr>
+            </table>
+            <p style="color: #9ca3af; font-size: 14px; margin: 30px 0 0 0; text-align: center;">
+              This link expires in <strong>24 hours</strong>.
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            <p style="color: #9ca3af; font-size: 13px; line-height: 1.5;">
+              If you did not request this verification, please ignore this email. If you have any questions, contact our support team.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color: #1a1a2e; padding: 20px 30px; text-align: center;">
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+              © 2026 CheckIT24. All rights reserved.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+    `;
+  }
+
+  /**
+   * Mask email for logging
+   */
+  private maskEmail(email: string): string {
+    const [local, domain] = email.split('@');
+    if (!local || !domain) return '***@***';
+    const maskedLocal = local.length > 2 ? local[0] + '***' + local[local.length - 1] : '***';
+    return `${maskedLocal}@${domain}`;
   }
 
   /**
@@ -188,6 +289,51 @@ export class KycNotificationService {
         confirmationUrl: this.getConfirmationUrl(request),
       },
     );
+  }
+
+  /**
+   * Resend confirmation email to customer
+   */
+  async resendConfirmationEmail(request: KycRequest): Promise<void> {
+    if (!request.customer.email) {
+      this.logger.warn(`Cannot resend email: Customer ${request.customer.fullName} has no email address`);
+      return;
+    }
+
+    const confirmationUrl = this.getConfirmationUrl(request);
+    const bankName = request.bankId; // TODO: Fetch bank name from bank service
+
+    try {
+      await this.emailService.sendEmail({
+        to: { email: request.customer.email, name: request.customer.fullName },
+        subject: `Reminder: Confirm Your KYC Verification - Ref: ${request.bankReference}`,
+        htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #1a1a2e;">KYC Verification Reminder</h2>
+            <p>Dear ${request.customer.fullName},</p>
+            <p>This is a reminder that <strong>${bankName}</strong> has requested a KYC verification for your account.</p>
+            <p>Please confirm your verification request by clicking the button below:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${confirmationUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                Confirm Verification
+              </a>
+            </div>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px;"><strong>Reference:</strong> ${request.bankReference}</p>
+              <p style="margin: 10px 0 0; font-size: 14px;"><strong>Location:</strong> ${request.location.address}</p>
+            </div>
+            <p style="color: #666; font-size: 12px;">
+              If you did not request this verification, please contact your bank immediately.
+            </p>
+            <p>Best regards,<br>ZigoCheck Team</p>
+          </div>
+        `,
+      });
+      this.logger.log(`Confirmation email resent to ${request.customer.email} for request ${request.id}`);
+    } catch (error) {
+      this.logger.error(`Failed to resend confirmation email to ${request.customer.email}`, error);
+      throw error;
+    }
   }
 
   /**
@@ -427,5 +573,131 @@ export class KycNotificationService {
         bankName: request.bankId,
       },
     );
+  }
+
+  // =========================================================================
+  // UPDATE & CANCELLATION NOTIFICATIONS
+  // =========================================================================
+
+  /**
+   * Notify all parties when a KYC request is updated
+   */
+  async notifyRequestUpdated(
+    request: KycRequest, 
+    updatedFields: string[],
+    bankName?: string,
+  ): Promise<void> {
+    const bank = bankName || request.bankId;
+    const fieldsSummary = updatedFields.join(', ');
+
+    // Notify customer via SMS
+    try {
+      await this.smsService.sendSMS({
+        to: request.customer.phoneNumber,
+        message: `Dear ${request.customer.fullName}, your KYC verification request (Ref: ${request.bankReference}) has been updated by ${bank}. Updated details: ${fieldsSummary}. If you have questions, please contact the bank.`,
+      });
+      this.logger.log(`SMS sent to customer for request update: ${request.id}`);
+    } catch (error) {
+      this.logger.error(`Failed to send update SMS to customer`, error);
+    }
+
+    // Notify customer via Email if available
+    if (request.customer.email) {
+      try {
+        await this.emailService.sendEmail({
+          to: { email: request.customer.email, name: request.customer.fullName },
+          subject: `KYC Verification Request Updated - Ref: ${request.bankReference}`,
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #1a1a2e;">KYC Request Updated</h2>
+              <p>Dear ${request.customer.fullName},</p>
+              <p>Your KYC verification request has been updated by <strong>${bank}</strong>.</p>
+              <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0;"><strong>Reference:</strong> ${request.bankReference}</p>
+                <p style="margin: 10px 0 0;"><strong>Updated Details:</strong> ${fieldsSummary}</p>
+              </div>
+              <p>If you have any questions about these changes, please contact your bank.</p>
+              <p>Best regards,<br>ZigoCheck Team</p>
+            </div>
+          `,
+        });
+        this.logger.log(`Email sent to customer for request update: ${request.id}`);
+      } catch (error) {
+        this.logger.error(`Failed to send update email to customer`, error);
+      }
+    }
+
+    // Notify assigned rider if one exists
+    if (request.riderId) {
+      // TODO: Fetch rider details and send notification
+      this.logger.log(`Rider ${request.riderId} should be notified of update to request ${request.id}`);
+    }
+
+    // Notify assigned company if one exists
+    if (request.companyId) {
+      // TODO: Fetch company details and send notification
+      this.logger.log(`Company ${request.companyId} should be notified of update to request ${request.id}`);
+    }
+  }
+
+  /**
+   * Notify all parties when a KYC request is cancelled
+   */
+  async notifyRequestCancelled(
+    request: KycRequest,
+    reason: string,
+    bankName?: string,
+  ): Promise<void> {
+    const bank = bankName || request.bankId;
+
+    // Notify customer via SMS
+    try {
+      await this.smsService.sendSMS({
+        to: request.customer.phoneNumber,
+        message: `Dear ${request.customer.fullName}, your KYC verification request (Ref: ${request.bankReference}) has been cancelled by ${bank}. Reason: ${reason || 'Not specified'}. Please contact the bank for more information.`,
+      });
+      this.logger.log(`SMS sent to customer for request cancellation: ${request.id}`);
+    } catch (error) {
+      this.logger.error(`Failed to send cancellation SMS to customer`, error);
+    }
+
+    // Notify customer via Email if available
+    if (request.customer.email) {
+      try {
+        await this.emailService.sendEmail({
+          to: { email: request.customer.email, name: request.customer.fullName },
+          subject: `KYC Verification Request Cancelled - Ref: ${request.bankReference}`,
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #dc2626;">KYC Request Cancelled</h2>
+              <p>Dear ${request.customer.fullName},</p>
+              <p>Your KYC verification request has been cancelled by <strong>${bank}</strong>.</p>
+              <div style="background: #fef2f2; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
+                <p style="margin: 0;"><strong>Reference:</strong> ${request.bankReference}</p>
+                <p style="margin: 10px 0 0;"><strong>Reason:</strong> ${reason || 'Not specified'}</p>
+              </div>
+              <p>If you have any questions or believe this was a mistake, please contact your bank.</p>
+              <p>Best regards,<br>ZigoCheck Team</p>
+            </div>
+          `,
+        });
+        this.logger.log(`Email sent to customer for request cancellation: ${request.id}`);
+      } catch (error) {
+        this.logger.error(`Failed to send cancellation email to customer`, error);
+      }
+    }
+
+    // Notify assigned rider if one exists
+    if (request.riderId) {
+      // TODO: Fetch rider phone and send SMS
+      this.logger.log(`Rider ${request.riderId} should be notified of cancellation for request ${request.id}`);
+      // Example: sendRiderCancellationNotification()
+    }
+
+    // Notify assigned company if one exists
+    if (request.companyId) {
+      // TODO: Fetch company admin email and send notification
+      this.logger.log(`Company ${request.companyId} should be notified of cancellation for request ${request.id}`);
+    }
   }
 }

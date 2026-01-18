@@ -4,6 +4,7 @@ import { Price } from '../value-objects/price.value-object';
 import { VerificationType } from '../value-objects/verification-type.value-object';
 import { VerificationStatus } from '../value-objects/verification-status.value-object';
 import { RejectionDetails } from '../value-objects/rejection-reason.value-object';
+import { RecurringScheduleVO } from '../value-objects/recurring-schedule.value-object';
 
 /**
  * VerificationRequest domain entity
@@ -31,6 +32,12 @@ export class VerificationRequest extends BaseEntity {
   private _customerResponseStatus?: 'ACCEPTED' | 'REJECTED';
   private _customerResponseDate?: Date;
   private _rejectionDetails?: RejectionDetails;
+  
+  // Recurring verification fields
+  private _isRecurring: boolean;
+  private _recurringSchedule?: RecurringScheduleVO;
+  private _parentRequestId?: string; // For child occurrences, points to parent
+  private _currentOccurrenceNumber?: number; // Which occurrence this is (1, 2, 3...)
 
   constructor(
     clientId: string,
@@ -53,6 +60,7 @@ export class VerificationRequest extends BaseEntity {
     this._attachments = [];
     this._paymentStatus = 'pending';
     this._statusHistory = [this._status];
+    this._isRecurring = false;
 
     // Validate initial state
     this.validateRequest();
@@ -144,6 +152,23 @@ export class VerificationRequest extends BaseEntity {
 
   get rejectionDetails(): RejectionDetails | undefined {
     return this._rejectionDetails;
+  }
+
+  // Recurring verification getters
+  get isRecurring(): boolean {
+    return this._isRecurring;
+  }
+
+  get recurringSchedule(): RecurringScheduleVO | undefined {
+    return this._recurringSchedule;
+  }
+
+  get parentRequestId(): string | undefined {
+    return this._parentRequestId;
+  }
+
+  get currentOccurrenceNumber(): number | undefined {
+    return this._currentOccurrenceNumber;
   }
 
   /**
@@ -279,6 +304,132 @@ export class VerificationRequest extends BaseEntity {
 
     this.changeStatus(VerificationStatus.createCancelled(reason, cancelledBy));
     console.log(`Verification cancelled for request: ${this.id}. Reason: ${reason}`);
+  }
+
+  // ============================================
+  // RECURRING VERIFICATION METHODS
+  // ============================================
+
+  /**
+   * Set up recurring schedule for this verification
+   */
+  public setRecurringSchedule(schedule: RecurringScheduleVO): void {
+    this._isRecurring = true;
+    this._recurringSchedule = schedule;
+    this.updateModified();
+    
+    console.log(`Recurring schedule set for request: ${this.id}. Frequency: ${schedule.frequency}, Occurrences: ${schedule.totalOccurrences}`);
+  }
+
+  /**
+   * Set parent request ID (for child occurrence requests)
+   */
+  public setParentRequest(parentId: string, occurrenceNumber: number): void {
+    this._parentRequestId = parentId;
+    this._currentOccurrenceNumber = occurrenceNumber;
+    this.updateModified();
+  }
+
+  /**
+   * Update instructions for an upcoming occurrence
+   */
+  public updateOccurrenceInstructions(occurrenceNumber: number, instructions: string): void {
+    if (!this._isRecurring || !this._recurringSchedule) {
+      throw new Error('This is not a recurring verification request');
+    }
+
+    this._recurringSchedule = this._recurringSchedule.withUpdatedOccurrenceInstructions(
+      occurrenceNumber,
+      instructions,
+    );
+    this.updateModified();
+    
+    console.log(`Instructions updated for occurrence ${occurrenceNumber} of request: ${this.id}`);
+  }
+
+  /**
+   * Cancel recurring schedule and calculate refund
+   * Returns the refund amount in kobo/cents
+   */
+  public cancelRecurringSchedule(reason: string): number {
+    if (!this._isRecurring || !this._recurringSchedule) {
+      throw new Error('This is not a recurring verification request');
+    }
+
+    if (this._recurringSchedule.status !== 'ACTIVE') {
+      throw new Error('Recurring schedule is not active');
+    }
+
+    // Calculate refund before cancelling
+    const refundAmount = this._recurringSchedule.calculateRefundAmount();
+
+    // Cancel the schedule
+    this._recurringSchedule = this._recurringSchedule.withCancellation(reason);
+    
+    // Update payment status if there's a refund
+    if (refundAmount > 0) {
+      this._paymentStatus = 'refunded';
+    }
+
+    this.updateModified();
+    
+    console.log(`Recurring schedule cancelled for request: ${this.id}. Refund amount: ${refundAmount}`);
+    
+    return refundAmount;
+  }
+
+  /**
+   * Mark an occurrence as completed
+   */
+  public completeOccurrence(occurrenceNumber: number, agentId: string, deliverableId?: string): void {
+    if (!this._isRecurring || !this._recurringSchedule) {
+      throw new Error('This is not a recurring verification request');
+    }
+
+    this._recurringSchedule = this._recurringSchedule.withCompletedOccurrence(
+      occurrenceNumber,
+      agentId,
+      deliverableId,
+    );
+    this.updateModified();
+    
+    console.log(`Occurrence ${occurrenceNumber} completed for request: ${this.id}`);
+  }
+
+  /**
+   * Mark admin as notified for an occurrence
+   */
+  public markAdminNotified(occurrenceNumber: number): void {
+    if (!this._isRecurring || !this._recurringSchedule) {
+      throw new Error('This is not a recurring verification request');
+    }
+
+    this._recurringSchedule = this._recurringSchedule.withAdminNotified(occurrenceNumber);
+    this.updateModified();
+    
+    console.log(`Admin notified for occurrence ${occurrenceNumber} of request: ${this.id}`);
+  }
+
+  /**
+   * Get occurrences that need admin reminder
+   */
+  public getOccurrencesNeedingReminder(): any[] {
+    if (!this._isRecurring || !this._recurringSchedule) {
+      return [];
+    }
+    
+    return this._recurringSchedule.getOccurrencesNeedingReminder();
+  }
+
+  /**
+   * Get refund amount if cancelled now (without actually cancelling)
+   */
+  public getEstimatedRefundAmount(): number {
+    if (!this._isRecurring || !this._recurringSchedule) {
+      return 0;
+    }
+    
+    return this._recurringSchedule.calculateRefundAmount();
   }
 
   /**
@@ -468,6 +619,11 @@ export class VerificationRequest extends BaseEntity {
       customerResponseStatus: this._customerResponseStatus,
       customerResponseDate: this._customerResponseDate?.toISOString(),
       rejectionDetails: this._rejectionDetails?.toJSON(),
+      // Recurring fields
+      isRecurring: this._isRecurring,
+      recurringSchedule: this._recurringSchedule?.toPlainObject(),
+      parentRequestId: this._parentRequestId,
+      currentOccurrenceNumber: this._currentOccurrenceNumber,
     };
   }
 
@@ -509,6 +665,14 @@ export class VerificationRequest extends BaseEntity {
         data.rejectionDetails.rejectedBy
       );
     }
+
+    // Restore recurring fields
+    request._isRecurring = data.isRecurring || false;
+    if (data.recurringSchedule) {
+      request._recurringSchedule = RecurringScheduleVO.fromPlainObject(data.recurringSchedule);
+    }
+    request._parentRequestId = data.parentRequestId;
+    request._currentOccurrenceNumber = data.currentOccurrenceNumber;
 
     return request;
   }

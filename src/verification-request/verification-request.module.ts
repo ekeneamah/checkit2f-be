@@ -38,6 +38,7 @@ import { PricingCalculationService } from './application/services/pricing-calcul
 import { PricingConfigService } from './application/services/pricing-config.service';
 import { VerificationPaymentService } from './application/services/verification-payment.service';
 import { IntentRouterService } from './application/services/intent-router.service';
+import { RecurringVerificationService } from './application/services/recurring-verification.service';
 import { 
   FixedPriceCalculator,
   RadiusBasedCalculator,
@@ -104,6 +105,9 @@ import { AdminPricingController } from '../admin/admin-pricing.controller';
     TieredCalculator,
     PremiumMultiplierCalculator,
     RecurringDiscountCalculator,
+    
+    // Recurring verification services
+    RecurringVerificationService,
     
     // Payment services
     VerificationPaymentService,

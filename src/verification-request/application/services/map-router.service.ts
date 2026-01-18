@@ -355,4 +355,18 @@ export class MapRouterService {
         };
     }
   }
+
+  /**
+   * Get nearby landmarks around coordinates (bypasses GPT routing)
+   */
+  async getNearbyLandmarks(
+    lat: number,
+    lng: number,
+    radius: number = 500,
+    query?: string,
+  ): Promise<SearchResultDto[]> {
+    this.logger.log(`Getting landmarks near (${lat}, ${lng}) within ${radius}m`);
+    // Don't pass query to get truly nearby places ranked by distance
+    return await this.googleMaps.placesNearbySearch(lat, lng, undefined, radius);
+  }
 }

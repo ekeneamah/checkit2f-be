@@ -5,10 +5,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { SMSService } from './sms/sms.service';
+import { EmailService } from './email/email.service';
 
 @Module({
   imports: [ConfigModule],
-  providers: [SMSService],
-  exports: [SMSService],
+  providers: [SMSService, EmailService],
+  exports: [SMSService, EmailService],
 })
 export class NotificationsModule {}

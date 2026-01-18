@@ -1,7 +1,7 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, Max, IsBoolean, IsArray, IsDateString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { VerificationTypeEnum, VerificationUrgency, RejectionReason } from '../../domain';
+import { VerificationTypeEnum, VerificationUrgency, RejectionReason, RecurringFrequency } from '../../domain';
 
 /**
  * Location DTO for verification requests
@@ -260,6 +260,48 @@ export class CreateVerificationRequestDto {
   @IsString({ each: true })
   @IsOptional()
   refinedInstructions?: string[];
+
+  // ============================================
+  // RECURRING VERIFICATION FIELDS
+  // ============================================
+
+  @ApiPropertyOptional({
+    description: 'Whether this is a recurring verification request',
+    example: true,
+    default: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isRecurring?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Frequency of recurring verification',
+    enum: RecurringFrequency,
+    example: 'WEEKLY',
+  })
+  @IsEnum(RecurringFrequency)
+  @IsOptional()
+  recurringFrequency?: RecurringFrequency;
+
+  @ApiPropertyOptional({
+    description: 'Total number of occurrences for recurring verification (2-52)',
+    example: 4,
+    minimum: 2,
+    maximum: 52,
+  })
+  @IsNumber()
+  @Min(2)
+  @Max(52)
+  @IsOptional()
+  recurringOccurrences?: number;
+
+  @ApiPropertyOptional({
+    description: 'Start date for the first occurrence (ISO string). Defaults to scheduledDate if not provided.',
+    example: '2024-01-20T10:00:00Z',
+  })
+  @IsDateString()
+  @IsOptional()
+  recurringStartDate?: string;
 }
 
 /**

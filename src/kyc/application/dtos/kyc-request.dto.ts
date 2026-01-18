@@ -18,6 +18,7 @@ import {
   IsObject,
   IsArray,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -56,12 +57,14 @@ export class CustomerDetailsDto {
   @ApiPropertyOptional({ description: 'Bank Verification Number' })
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => o.bvn && o.bvn.length > 0)
   @Matches(/^\d{11}$/, { message: 'BVN must be 11 digits' })
   bvn?: string;
 
   @ApiPropertyOptional({ description: 'National Identification Number' })
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => o.nin && o.nin.length > 0)
   @Matches(/^\d{11}$/, { message: 'NIN must be 11 digits' })
   nin?: string;
 
@@ -176,6 +179,152 @@ export class CreateKycRequestDto {
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+/**
+ * Update Customer Details DTO (all fields optional)
+ */
+export class UpdateCustomerDetailsDto {
+  @ApiPropertyOptional({ description: 'Customer full name' })
+  @IsOptional()
+  @IsString()
+  fullName?: string;
+
+  @ApiPropertyOptional({ description: 'Customer phone number (Nigerian format)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(\+234|234|0)?[789][01]\d{8}$/, { 
+    message: 'Phone number must be a valid Nigerian number' 
+  })
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Customer email address' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'Bank Verification Number' })
+  @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.bvn && o.bvn.length > 0)
+  @Matches(/^\d{11}$/, { message: 'BVN must be 11 digits' })
+  bvn?: string;
+
+  @ApiPropertyOptional({ description: 'National Identification Number' })
+  @IsOptional()
+  @IsString()
+  @ValidateIf((o) => o.nin && o.nin.length > 0)
+  @Matches(/^\d{11}$/, { message: 'NIN must be 11 digits' })
+  nin?: string;
+
+  @ApiPropertyOptional({ description: 'Date of birth' })
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional({ description: 'Gender', enum: ['MALE', 'FEMALE', 'OTHER'] })
+  @IsOptional()
+  @IsEnum(['MALE', 'FEMALE', 'OTHER'])
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+
+  @ApiPropertyOptional({ description: 'Nationality' })
+  @IsOptional()
+  @IsString()
+  nationality?: string;
+}
+
+/**
+ * Update Location DTO (all fields optional)
+ */
+export class UpdateLocationDto {
+  @ApiPropertyOptional({ description: 'Full address' })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'City' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'State' })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional({ description: 'Country' })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional({ description: 'Postal code' })
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @ApiPropertyOptional({ description: 'Latitude' })
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @ApiPropertyOptional({ description: 'Longitude' })
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
+
+  @ApiPropertyOptional({ description: 'Nearby landmark' })
+  @IsOptional()
+  @IsString()
+  landmark?: string;
+
+  @ApiPropertyOptional({ description: 'Access instructions' })
+  @IsOptional()
+  @IsString()
+  accessInstructions?: string;
+}
+
+/**
+ * Update KYC Request DTO (Bank can update before verification starts)
+ */
+export class UpdateKycRequestDto {
+  @ApiPropertyOptional({ description: 'Customer details updates', type: UpdateCustomerDetailsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateCustomerDetailsDto)
+  customer?: UpdateCustomerDetailsDto;
+
+  @ApiPropertyOptional({ description: 'Location updates', type: UpdateLocationDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateLocationDto)
+  location?: UpdateLocationDto;
+
+  @ApiPropertyOptional({ description: 'Additional notes' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional({ 
+    description: 'Urgency level update', 
+    enum: KycUrgency 
+  })
+  @IsOptional()
+  @IsEnum(KycUrgency)
+  urgency?: KycUrgency;
+}
+
+/**
+ * Cancel KYC Request DTO
+ */
+export class CancelKycRequestDto {
+  @ApiPropertyOptional({ description: 'Reason for cancellation' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }
 
 /**

@@ -16,6 +16,7 @@ import { AgentModule } from './agent/agent.module';
 import { CompanyModule } from './company/company.module';
 import { HealthController } from './health/health.controller';
 import { KycModule } from './kyc/kyc.module';
+import { FeedbackModule } from './feedback/feedback.module';
 
 // Field Agent Feature Modules
 import { TrackingModule } from './tracking/tracking.module';
@@ -82,6 +83,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     PaymentModule,
     NotificationModule,
     KycModule,
+    FeedbackModule,
 
     // Field Agent Feature Modules
     TrackingModule,

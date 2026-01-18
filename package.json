@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "main": "src/index.firebase.js",
   "engines": {
-    "node": ">=20"
+    "node": "20"
   },
   "scripts": {
     "build": "nest build",
@@ -25,7 +25,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "deploy:prepare": "powershell -Command \"$pkg = Get-Content package.json | ConvertFrom-Json; $pkg.PSObject.Properties.Remove('jest'); $pkg.PSObject.Properties.Remove('devDependencies'); $pkg.main = 'src/index.firebase.js'; $pkg | ConvertTo-Json -Depth 10 | Out-File dist\\package.json -Encoding ascii; Get-Content .env | Where-Object { $_ -notmatch '^PORT=' } | Out-File dist\\.env -Encoding ascii\"",
-    "deploy": "npm run build && npm run deploy:prepare && firebase deploy --only functions",
+    "deploy:clean": "firebase functions:delete api --force || echo Function not found, continuing...",
+    "deploy": "npm run build && npm run deploy:prepare && npm run deploy:clean && firebase deploy --only functions",
     "logs": "firebase functions:log"
   },
   "dependencies": {

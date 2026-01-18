@@ -89,6 +89,34 @@ export class MapRouterController {
   }
 
   /**
+   * Get nearby landmarks around coordinates (bypasses GPT routing)
+   */
+  @Public()
+  @Post('nearby-landmarks')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get nearby landmarks',
+    description: 'Fetch nearby landmarks using Google Places Nearby Search API',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Landmarks fetched successfully',
+    type: [SearchResultDto],
+  })
+  @ApiBadRequestResponse({ description: 'Missing coordinates' })
+  async getNearbyLandmarks(
+    @Body() body: { lat: number; lng: number; radius?: number; query?: string },
+  ): Promise<SearchResultDto[]> {
+    this.logger.log(`Fetching landmarks near (${body.lat}, ${body.lng})`);
+    return await this.mapRouterService.getNearbyLandmarks(
+      body.lat,
+      body.lng,
+      body.radius || 500,
+      body.query,
+    );
+  }
+
+  /**
    * Create a manual pin location
    */
   @Public()

@@ -74,6 +74,20 @@ export interface IPriceCalculationResponse {
     surgeActive?: boolean;
     discountsApplied?: string[];
   };
+
+  // Recurring verification details (when isRecurring = true)
+  recurring?: {
+    frequency: string; // 'DAILY' | 'WEEKLY' | 'MONTHLY'
+    frequencyLabel: string; // 'Daily' | 'Weekly' | 'Monthly'
+    occurrences: number;
+    pricePerOccurrence: number;
+    totalWithoutDiscount: number;
+    discountPercentage: number;
+    discountAmount: number;
+    totalPrice: number; // Final total for all occurrences
+    scheduleDescription: string; // e.g., "4 weekly visits over 4 weeks"
+    estimatedEndDate: string; // ISO date string
+  };
 }
 
 /**
@@ -94,6 +108,7 @@ export interface IPriceCalculationRequest {
   scheduledDate?: Date;
   isRecurring?: boolean;
   recurringCount?: number;
+  recurringFrequency?: string; // 'DAILY' | 'WEEKLY' | 'MONTHLY'
   customerTier?: string; // 'bronze' | 'silver' | 'gold' | 'platinum'
   promotionalCode?: string;
 }

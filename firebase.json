@@ -1,13 +1,17 @@
 {
-  "functions": {
-    "source": "dist",
-    "codebase": "default",
-    "ignore": [
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "*.local"
-    ],
-    "runtime": "nodejs20"
-  }
+  "functions": [
+    {
+      "source": "dist",
+      "codebase": "default",
+      "ignore": [
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local",
+        "node_modules"
+      ],
+      "runtime": "nodejs20",
+      "predeploy": []
+    }
+  ]
 }

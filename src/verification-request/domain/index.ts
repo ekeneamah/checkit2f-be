@@ -18,3 +18,11 @@ export {
   RejectionReason, 
   RejectionDetails 
 } from './value-objects/rejection-reason.value-object';
+export { 
+  RecurringScheduleVO, 
+  RecurringScheduleStatus,
+  IRecurringOccurrence 
+} from './value-objects/recurring-schedule.value-object';
+
+// Enums exports
+export { RecurringFrequency } from './enums/recurring-frequency.enum';

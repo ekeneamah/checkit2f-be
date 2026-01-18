@@ -453,7 +453,10 @@ export class FirestoreKycRequestRepository implements IKycRequestRepository {
     const json = request.toJSON() as Record<string, any>;
     
     // Convert ISO date strings to Firestore timestamps
-    return this.convertDatesToTimestamps(json);
+    const withTimestamps = this.convertDatesToTimestamps(json);
+    
+    // Remove undefined values (Firestore doesn't accept undefined)
+    return this.removeUndefinedValues(withTimestamps);
   }
 
   /**
@@ -496,6 +499,34 @@ export class FirestoreKycRequestRepository implements IKycRequestRepository {
       const result: Record<string, any> = {};
       for (const key of Object.keys(obj)) {
         result[key] = this.convertDatesToTimestamps(obj[key]);
+      }
+      return result;
+    }
+
+    return obj;
+  }
+
+  /**
+   * Recursively remove undefined values from an object
+   * Firestore doesn't accept undefined values
+   */
+  private removeUndefinedValues(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return null; // Convert undefined to null for Firestore
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.removeUndefinedValues(item));
+    }
+
+    if (typeof obj === 'object' && !(obj instanceof admin.firestore.Timestamp)) {
+      const result: Record<string, any> = {};
+      for (const key of Object.keys(obj)) {
+        const value = this.removeUndefinedValues(obj[key]);
+        // Only include the property if it's not null (which we converted from undefined)
+        if (value !== null) {
+          result[key] = value;
+        }
       }
       return result;
     }

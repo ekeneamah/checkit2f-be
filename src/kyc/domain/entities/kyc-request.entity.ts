@@ -586,6 +586,14 @@ export class KycRequest {
   }
 
   /**
+   * Cancel the KYC request
+   */
+  cancel(reason: string, changedBy: string): void {
+    this.transitionStatus(KycStatus.CANCELLED, changedBy, reason || 'Request cancelled');
+    this._modifiedAt = new Date();
+  }
+
+  /**
    * Update location
    */
   updateLocation(location: KycLocation): void {

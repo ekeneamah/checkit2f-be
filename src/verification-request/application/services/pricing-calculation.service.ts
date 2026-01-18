@@ -185,7 +185,8 @@ export class PricingCalculationService {
         pricingConfig,
       );
 
-      return {
+      // Build response
+      const response: IPriceCalculationResponse = {
         requestTypeId: request.requestTypeId,
         requestTypeName: '',
         calculationId,
@@ -206,6 +207,19 @@ export class PricingCalculationService {
           discountsApplied: this.getAppliedDiscounts(promoDiscount, tierDiscount, volumeDiscount),
         },
       };
+
+      // Add recurring details if applicable
+      if (request.isRecurring && request.recurringCount && request.recurringCount > 1) {
+        response.recurring = this.calculateRecurringDetails(
+          request,
+          breakdown.finalPrice,
+          pricingConfig,
+        );
+        // Update final price to be the total for all occurrences
+        response.finalPrice = response.recurring.totalPrice;
+      }
+
+      return response;
     } catch (error) {
       this.logger.error(`Price calculation failed: ${error.message}`);
       throw error;
@@ -498,5 +512,118 @@ export class PricingCalculationService {
     if (tier > 0) applied.push('customer_tier');
     if (volume > 0) applied.push('volume_or_recurring');
     return applied;
+  }
+
+  /**
+   * Calculate recurring verification details
+   * Returns total price for all occurrences with discount breakdown
+   */
+  private calculateRecurringDetails(
+    request: IPriceCalculationRequest,
+    pricePerOccurrence: number,
+    config: PricingConfigEntity,
+  ): {
+    frequency: string;
+    frequencyLabel: string;
+    occurrences: number;
+    pricePerOccurrence: number;
+    totalWithoutDiscount: number;
+    discountPercentage: number;
+    discountAmount: number;
+    totalPrice: number;
+    scheduleDescription: string;
+    estimatedEndDate: string;
+  } {
+    const occurrences = request.recurringCount || 2;
+    const frequency = request.recurringFrequency || 'WEEKLY';
+    
+    // Calculate totals
+    const totalWithoutDiscount = pricePerOccurrence * occurrences;
+    
+    // Find applicable discount
+    const recurringConfig = config.recurringDiscountConfigs.find(
+      (r) => r.occurrenceCount <= occurrences && r.isActive,
+    );
+    const discountPercentage = recurringConfig?.discountPercentage || 0;
+    const discountAmount = Math.round((totalWithoutDiscount * discountPercentage) / 100);
+    const totalPrice = totalWithoutDiscount - discountAmount;
+
+    // Calculate estimated end date
+    const startDate = request.scheduledDate || new Date();
+    const endDate = this.calculateRecurringEndDate(frequency, startDate, occurrences);
+
+    // Get frequency label
+    const frequencyLabel = this.getFrequencyLabel(frequency);
+
+    // Build schedule description
+    const scheduleDescription = this.getScheduleDescription(frequency, occurrences);
+
+    this.logger.log(`Recurring price calculated: ${occurrences}x ${frequency} = ₦${totalPrice / 100} (${discountPercentage}% off)`);
+
+    return {
+      frequency,
+      frequencyLabel,
+      occurrences,
+      pricePerOccurrence,
+      totalWithoutDiscount,
+      discountPercentage,
+      discountAmount,
+      totalPrice,
+      scheduleDescription,
+      estimatedEndDate: endDate.toISOString(),
+    };
+  }
+
+  /**
+   * Calculate end date for recurring schedule
+   */
+  private calculateRecurringEndDate(frequency: string, startDate: Date, occurrences: number): Date {
+    const end = new Date(startDate);
+
+    switch (frequency.toUpperCase()) {
+      case 'DAILY':
+        end.setDate(end.getDate() + (occurrences - 1));
+        break;
+      case 'WEEKLY':
+        end.setDate(end.getDate() + (occurrences - 1) * 7);
+        break;
+      case 'MONTHLY':
+        end.setMonth(end.getMonth() + (occurrences - 1));
+        break;
+    }
+
+    return end;
+  }
+
+  /**
+   * Get human-readable frequency label
+   */
+  private getFrequencyLabel(frequency: string): string {
+    switch (frequency.toUpperCase()) {
+      case 'DAILY':
+        return 'Daily';
+      case 'WEEKLY':
+        return 'Weekly';
+      case 'MONTHLY':
+        return 'Monthly';
+      default:
+        return frequency;
+    }
+  }
+
+  /**
+   * Get schedule description for recurring verification
+   */
+  private getScheduleDescription(frequency: string, occurrences: number): string {
+    switch (frequency.toUpperCase()) {
+      case 'DAILY':
+        return `${occurrences} daily visits over ${occurrences} days`;
+      case 'WEEKLY':
+        return `${occurrences} weekly visits over ${occurrences} weeks`;
+      case 'MONTHLY':
+        return `${occurrences} monthly visits over ${occurrences} months`;
+      default:
+        return `${occurrences} visits`;
+    }
   }
 }

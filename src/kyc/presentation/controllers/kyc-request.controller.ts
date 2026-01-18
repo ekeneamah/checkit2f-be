@@ -30,6 +30,8 @@ import {
 import { KycRequestService } from '../../application/services';
 import {
   CreateKycRequestDto,
+  UpdateKycRequestDto,
+  CancelKycRequestDto,
   CustomerConfirmationDto,
   AssignCompanyDto,
   AssignRiderDto,
@@ -201,6 +203,54 @@ export class KycRequestController {
   ) {
     this.logger.log(`Creating KYC request for bank: ${bankId}`);
     const request = await this.kycService.createRequest(bankId, dto);
+    return { success: true, data: request.toJSON() };
+  }
+
+  /**
+   * Update KYC request details (Bank only, before verification starts)
+   */
+  @AuthWithRoles(UserRole.BANK)
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update KYC request',
+    description: 'Bank updates KYC request details. Only allowed before the rider starts verification.',
+  })
+  @ApiParam({ name: 'id', description: 'KYC request ID' })
+  @ApiOkResponse({ description: 'KYC request updated successfully' })
+  @ApiBadRequestResponse({ description: 'Cannot update request in current status' })
+  async updateRequest(
+    @Param('id') id: string,
+    @Body() dto: UpdateKycRequestDto,
+    @CurrentUser('id') bankId: string,
+  ) {
+    this.logger.log(`Updating KYC request ${id} for bank: ${bankId}`);
+    const request = await this.kycService.updateRequest(id, bankId, dto);
+    return { success: true, data: request.toJSON() };
+  }
+
+  /**
+   * Cancel KYC request (Bank only, before rider starts verification)
+   */
+  @AuthWithRoles(UserRole.BANK)
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cancel KYC request',
+    description: 'Bank cancels KYC request. Only allowed before the rider is actively verifying.',
+  })
+  @ApiParam({ name: 'id', description: 'KYC request ID' })
+  @ApiOkResponse({ description: 'KYC request cancelled successfully' })
+  @ApiBadRequestResponse({ description: 'Cannot cancel request in current status' })
+  async cancelRequest(
+    @Param('id') id: string,
+    @Body() dto: CancelKycRequestDto,
+    @CurrentUser('id') bankId: string,
+  ) {
+    this.logger.log(`Cancelling KYC request ${id} for bank: ${bankId}`);
+    const request = await this.kycService.cancelRequest(id, bankId, dto);
     return { success: true, data: request.toJSON() };
   }
 
@@ -658,6 +708,26 @@ export class KycRequestController {
     // This calls the notification service directly
     await this.kycService.resendConfirmationSms(id, bankId);
     return { success: true, message: 'Confirmation SMS resent' };
+  }
+
+  /**
+   * Resend confirmation email to customer
+   */
+  @AuthWithRoles(UserRole.BANK)
+  @Post(':id/resend-confirmation-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Resend confirmation email to customer' })
+  async resendConfirmationEmail(
+    @Param('id') id: string,
+    @CurrentUser('id') bankId: string,
+  ) {
+    const request = await this.kycService.findById(id);
+    if (request.bankId !== bankId) {
+      throw new Error('Unauthorized access to this request');
+    }
+    await this.kycService.resendConfirmationEmail(id, bankId);
+    return { success: true, message: 'Confirmation email resent' };
   }
 
   /**

@@ -94,6 +94,46 @@ export const KycStatusPhase = {
 } as const;
 
 /**
+ * Statuses that allow bank to update KYC details
+ * Before rider starts active verification work
+ */
+export const BANK_MODIFIABLE_STATUSES = [
+  KycStatus.CREATED,
+  KycStatus.PENDING_CUSTOMER_CONFIRMATION,
+  KycStatus.CUSTOMER_CONFIRMED,
+  KycStatus.PENDING_ADMIN_REVIEW,
+  KycStatus.PENDING_ASSIGNMENT,
+  KycStatus.ASSIGNED_TO_COMPANY,
+  KycStatus.RIDER_ASSIGNED,
+  KycStatus.PENDING_LETTER,
+  KycStatus.LETTER_UPLOADED,
+] as const;
+
+/**
+ * Statuses that allow bank to cancel KYC request
+ * Includes SCHEDULED as bank can still cancel before rider is en route
+ */
+export const BANK_CANCELLABLE_STATUSES = [
+  ...BANK_MODIFIABLE_STATUSES,
+  KycStatus.SCHEDULED,
+  KycStatus.RESCHEDULED,
+] as const;
+
+/**
+ * Check if bank can update KYC request at given status
+ */
+export function canBankModify(status: KycStatus): boolean {
+  return (BANK_MODIFIABLE_STATUSES as readonly KycStatus[]).includes(status);
+}
+
+/**
+ * Check if bank can cancel KYC request at given status
+ */
+export function canBankCancel(status: KycStatus): boolean {
+  return (BANK_CANCELLABLE_STATUSES as readonly KycStatus[]).includes(status);
+}
+
+/**
  * Get the phase for a given status
  */
 export function getPhaseForStatus(status: KycStatus): string {
@@ -110,14 +150,14 @@ export function getPhaseForStatus(status: KycStatus): string {
  */
 export const KycStatusTransitions: Record<KycStatus, KycStatus[]> = {
   [KycStatus.CREATED]: [KycStatus.PENDING_CUSTOMER_CONFIRMATION, KycStatus.CANCELLED],
-  [KycStatus.PENDING_CUSTOMER_CONFIRMATION]: [KycStatus.CUSTOMER_CONFIRMED, KycStatus.CUSTOMER_REJECTED, KycStatus.EXPIRED],
-  [KycStatus.CUSTOMER_CONFIRMED]: [KycStatus.PENDING_ADMIN_REVIEW],
+  [KycStatus.PENDING_CUSTOMER_CONFIRMATION]: [KycStatus.CUSTOMER_CONFIRMED, KycStatus.CUSTOMER_REJECTED, KycStatus.EXPIRED, KycStatus.CANCELLED],
+  [KycStatus.CUSTOMER_CONFIRMED]: [KycStatus.PENDING_ADMIN_REVIEW, KycStatus.CANCELLED],
   [KycStatus.PENDING_ADMIN_REVIEW]: [KycStatus.PENDING_ASSIGNMENT, KycStatus.CANCELLED],
-  [KycStatus.PENDING_ASSIGNMENT]: [KycStatus.ASSIGNED_TO_COMPANY],
-  [KycStatus.ASSIGNED_TO_COMPANY]: [KycStatus.RIDER_ASSIGNED, KycStatus.PENDING_ASSIGNMENT],
-  [KycStatus.RIDER_ASSIGNED]: [KycStatus.PENDING_LETTER, KycStatus.SCHEDULED],
-  [KycStatus.PENDING_LETTER]: [KycStatus.LETTER_UPLOADED, KycStatus.SCHEDULED],
-  [KycStatus.LETTER_UPLOADED]: [KycStatus.SCHEDULED],
+  [KycStatus.PENDING_ASSIGNMENT]: [KycStatus.ASSIGNED_TO_COMPANY, KycStatus.CANCELLED],
+  [KycStatus.ASSIGNED_TO_COMPANY]: [KycStatus.RIDER_ASSIGNED, KycStatus.PENDING_ASSIGNMENT, KycStatus.CANCELLED],
+  [KycStatus.RIDER_ASSIGNED]: [KycStatus.PENDING_LETTER, KycStatus.SCHEDULED, KycStatus.CANCELLED],
+  [KycStatus.PENDING_LETTER]: [KycStatus.LETTER_UPLOADED, KycStatus.SCHEDULED, KycStatus.CANCELLED],
+  [KycStatus.LETTER_UPLOADED]: [KycStatus.SCHEDULED, KycStatus.CANCELLED],
   [KycStatus.SCHEDULED]: [KycStatus.RIDER_EN_ROUTE, KycStatus.RESCHEDULED, KycStatus.CANCELLED],
   [KycStatus.RIDER_EN_ROUTE]: [KycStatus.ARRIVED, KycStatus.FAILED],
   [KycStatus.ARRIVED]: [KycStatus.PENDING_OTP],

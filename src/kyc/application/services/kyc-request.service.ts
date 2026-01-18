@@ -19,9 +19,13 @@ import {
   CustomerRating,
   QaReview,
   isValidTransition,
+  canBankModify,
+  canBankCancel,
 } from '../../domain';
 import {
   CreateKycRequestDto,
+  UpdateKycRequestDto,
+  CancelKycRequestDto,
   CustomerConfirmationDto,
   AssignCompanyDto,
   AssignRiderDto,
@@ -71,9 +75,11 @@ export class KycRequestService {
       dto.customer.fullName,
       dto.customer.phoneNumber,
       dto.customer.email,
-      dto.location.address,
       dto.customer.bvn,
-      undefined, // accountNumber not in DTO
+      dto.customer.nin,
+      dto.customer.dateOfBirth ? new Date(dto.customer.dateOfBirth) : undefined,
+      dto.customer.gender,
+      dto.customer.nationality,
     );
 
     // Create location
@@ -203,6 +209,27 @@ export class KycRequestService {
     await this.notificationService.sendConfirmationReminder(request);
 
     this.logger.log(`Confirmation SMS resent for KYC request ${id}`);
+  }
+
+  /**
+   * Resend confirmation email to customer
+   */
+  async resendConfirmationEmail(id: string, bankId: string): Promise<void> {
+    const request = await this.findById(id);
+    this.validateBankOwnership(request, bankId);
+
+    if (request.status !== KycStatus.PENDING_CUSTOMER_CONFIRMATION) {
+      throw new BadRequestException('Can only resend confirmation for requests pending customer confirmation');
+    }
+
+    if (!request.customer.email) {
+      throw new BadRequestException('Customer does not have an email address');
+    }
+
+    // Re-send the email
+    await this.notificationService.resendConfirmationEmail(request);
+
+    this.logger.log(`Confirmation email resent for KYC request ${id}`);
   }
 
   /**
@@ -810,6 +837,123 @@ export class KycRequestService {
    */
   async findScheduledForToday(): Promise<KycRequest[]> {
     return this.repository.findScheduledForToday();
+  }
+
+  // =========================================================================
+  // BANK UPDATE & CANCEL
+  // =========================================================================
+
+  /**
+   * Update KYC request details (Bank only, before verification starts)
+   */
+  async updateRequest(id: string, bankId: string, dto: UpdateKycRequestDto): Promise<KycRequest> {
+    this.logger.log(`Updating KYC request ${id} by bank ${bankId}`);
+
+    const request = await this.findById(id);
+    this.validateBankOwnership(request, bankId);
+
+    // Check if status allows modifications
+    if (!canBankModify(request.status)) {
+      throw new BadRequestException(
+        `Cannot update KYC request in status: ${request.status}. Updates are only allowed before the rider begins verification.`
+      );
+    }
+
+    // Track what fields were updated for notification
+    const updatedFields: string[] = [];
+
+    // Update customer details if provided
+    if (dto.customer) {
+      const currentCustomer = request.customer;
+      const updatedCustomer = new CustomerDetails(
+        dto.customer.fullName ?? currentCustomer.fullName,
+        dto.customer.phoneNumber ?? currentCustomer.phoneNumber,
+        dto.customer.email ?? currentCustomer.email,
+        dto.customer.bvn ?? currentCustomer.bvn,
+        dto.customer.nin ?? currentCustomer.nin,
+        dto.customer.dateOfBirth ? new Date(dto.customer.dateOfBirth) : currentCustomer.dateOfBirth,
+        dto.customer.gender ?? currentCustomer.gender,
+        dto.customer.nationality ?? currentCustomer.nationality,
+      );
+      request.updateCustomer(updatedCustomer);
+      updatedFields.push('Customer Details');
+    }
+
+    // Update location if provided
+    if (dto.location) {
+      const currentLocation = request.location;
+      const updatedLocation: KycLocation = {
+        address: dto.location.address ?? currentLocation.address,
+        city: dto.location.city ?? currentLocation.city,
+        state: dto.location.state ?? currentLocation.state,
+        country: dto.location.country ?? currentLocation.country,
+        postalCode: dto.location.postalCode ?? currentLocation.postalCode,
+        latitude: dto.location.latitude ?? currentLocation.latitude,
+        longitude: dto.location.longitude ?? currentLocation.longitude,
+        landmark: dto.location.landmark ?? currentLocation.landmark,
+        accessInstructions: dto.location.accessInstructions ?? currentLocation.accessInstructions,
+      };
+      request.updateLocation(updatedLocation);
+      updatedFields.push('Verification Location');
+    }
+
+    // Update notes if provided
+    if (dto.notes !== undefined) {
+      request.setNotes(dto.notes);
+      updatedFields.push('Notes');
+    }
+
+    // Save changes
+    await this.repository.update(request);
+    this.logger.log(`KYC request ${id} updated successfully`);
+
+    // Send notifications to all parties
+    if (updatedFields.length > 0) {
+      try {
+        await this.notificationService.notifyRequestUpdated(request, updatedFields);
+      } catch (error) {
+        this.logger.error(`Failed to send update notifications for request ${id}`, error);
+        // Don't throw - notification failure shouldn't block the update
+      }
+    }
+
+    return request;
+  }
+
+  /**
+   * Cancel KYC request (Bank only, before rider is actively working)
+   */
+  async cancelRequest(id: string, bankId: string, dto: CancelKycRequestDto): Promise<KycRequest> {
+    this.logger.log(`Cancelling KYC request ${id} by bank ${bankId}`);
+
+    const request = await this.findById(id);
+    this.validateBankOwnership(request, bankId);
+
+    // Check if status allows cancellation
+    if (!canBankCancel(request.status)) {
+      throw new BadRequestException(
+        `Cannot cancel KYC request in status: ${request.status}. Cancellation is not allowed once the rider has started the verification process.`
+      );
+    }
+
+    const reason = dto.reason || 'Cancelled by bank';
+
+    // Cancel the request
+    request.cancel(reason, bankId);
+
+    // Save changes
+    await this.repository.update(request);
+
+    // Send notifications to all parties
+    try {
+      await this.notificationService.notifyRequestCancelled(request, reason);
+    } catch (error) {
+      this.logger.error(`Failed to send cancellation notifications for request ${id}`, error);
+      // Don't throw - notification failure shouldn't block the cancellation
+    }
+
+    this.logger.log(`KYC request ${id} cancelled successfully`);
+    return request;
   }
 
   // =========================================================================

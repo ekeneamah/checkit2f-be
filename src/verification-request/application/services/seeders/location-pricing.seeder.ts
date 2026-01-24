@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { LocationPricingService } from '../location-pricing.service';
 import { LocationPricingCreateDto } from '../../../domain/entities/location-pricing.entity';
 
+/*
+ * SEEDER TEMPORARILY DISABLED - NEEDS UPDATE TO NEW LGA STRUCTURE
+ * TODO: Update seed data from city/area to state/lga/locality format
+ */
+
 /**
  * Location Pricing Seeder
  * Seeds initial pricing configurations for major Nigerian cities and areas
@@ -14,8 +19,15 @@ export class LocationPricingSeederService {
 
   /**
    * Seed initial pricing configurations
+   * TODO: Update to use new LGA-based structure (state, lga, locality, basePrice, pricePerKm)
    */
   async seedInitialPricing(): Promise<void> {
+    this.logger.log('Location pricing seeder temporarily disabled - needs migration to LGA structure');
+    this.logger.warn('TODO: Update seeder to use state → LGA → locality structure with basePrice and pricePerKm');
+    return;
+
+    /*
+    // OLD SEEDER CODE - NEEDS MIGRATION TO LGA STRUCTURE
     this.logger.log('Seeding initial location pricing configurations...');
 
     const initialPricingConfigs: LocationPricingCreateDto[] = [
@@ -277,6 +289,7 @@ export class LocationPricingSeederService {
       this.logger.error(`Failed to seed location pricing: ${error.message}`);
       throw error;
     }
+    */
   }
 
   /**

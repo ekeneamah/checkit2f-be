@@ -79,7 +79,7 @@ export class PricingCalculationService {
       // LocationPricingService returns amounts in Naira; convert to kobo (x100)
       let basePrice = 500000; // Default ₦5,000 in kobo
       if (locationPrice) {
-        const totalKobo = Math.round((locationPrice.totalCost || 0) * 100);
+        const totalKobo = Math.round((locationPrice.finalPrice || 0) * 100);
         basePrice = totalKobo > 0 ? totalKobo : basePrice;
       }
 
@@ -88,7 +88,7 @@ export class PricingCalculationService {
         amount: basePrice,
         type: 'base',
         description: locationPrice
-          ? `${locationPrice.city}${locationPrice.area ? ` - ${locationPrice.area}` : ''}`
+          ? `${locationPrice.state} → ${locationPrice.lga}${locationPrice.locality ? ` → ${locationPrice.locality}` : ''}`
           : 'Default',
       });
 

@@ -61,11 +61,20 @@ export class CalculatePriceDto {
 
   @IsOptional()
   @IsString()
-  city?: string; // City for location-based pricing
+  state?: string; // State for location-based pricing
 
   @IsOptional()
   @IsString()
-  area?: string; // Area for location-based pricing
+  lga?: string; // LGA for location-based pricing
+
+  @IsOptional()
+  @IsString()
+  locality?: string; // Locality for location-based pricing
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  distanceKm?: number; // Distance in kilometers for price calculation
 }
 
 /**

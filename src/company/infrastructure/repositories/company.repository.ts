@@ -113,6 +113,23 @@ export class CompanyRepository {
     return companies;
   }
 
+  /**
+   * Get companies by multiple statuses for location aggregation
+   */
+  async getCompaniesByStatuses(statuses: string[]): Promise<VerificationCompanyEntity[]> {
+    if (!statuses || statuses.length === 0) {
+      return [];
+    }
+
+    // Firestore 'in' query supports up to 10 values
+    const query = this.db
+      .collection(this.COMPANIES)
+      .where('status', 'in', statuses);
+
+    const snapshot = await query.get();
+    return snapshot.docs.map((doc) => this.fromFirestore(doc, VerificationCompanyEntity));
+  }
+
   // ==================== RIDERS ====================
 
   async createRider(companyId: string, data: Omit<Rider, 'id' | 'companyId'>): Promise<RiderEntity> {
@@ -524,14 +541,17 @@ export class CompanyRepository {
   // ==================== HELPERS ====================
 
   private toFirestore(entity: any): Record<string, any> {
-    const data = { ...entity };
-    // Convert dates
-    if (data.createdAt instanceof Date) {
+    // Deep clone to plain object, removing class prototypes
+    const data = JSON.parse(JSON.stringify(entity));
+    
+    // Convert dates to Firestore timestamps
+    if (entity.createdAt instanceof Date) {
       data.createdAt = FieldValue.serverTimestamp();
     }
-    if (data.updatedAt instanceof Date) {
+    if (entity.updatedAt instanceof Date) {
       data.updatedAt = FieldValue.serverTimestamp();
     }
+    
     return data;
   }
 

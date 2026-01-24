@@ -40,6 +40,30 @@ export class LocationDto {
   @IsOptional()
   area?: string;
 
+  @ApiPropertyOptional({
+    description: 'State/region',
+    example: 'Rivers',
+  })
+  @IsString()
+  @IsOptional()
+  state?: string;
+
+  @ApiPropertyOptional({
+    description: 'Local Government Area (LGA)',
+    example: 'Port Harcourt City',
+  })
+  @IsString()
+  @IsOptional()
+  lga?: string;
+
+  @ApiPropertyOptional({
+    description: 'Locality/neighborhood within the LGA',
+    example: 'Abuloma',
+  })
+  @IsString()
+  @IsOptional()
+  locality?: string;
+
   @ApiProperty({
     description: 'Latitude coordinate',
     example: 6.5244,
@@ -573,6 +597,7 @@ export class VerificationRequestQueryDto {
     minimum: 1,
     default: 1,
   })
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @IsOptional()
@@ -585,6 +610,7 @@ export class VerificationRequestQueryDto {
     maximum: 100,
     default: 10,
   })
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @Max(100)

@@ -3,6 +3,8 @@ import {
   Get,
   Post,
   Patch,
+  Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -15,7 +17,19 @@ import { AuthWithRoles } from '../../../auth/decorators/auth.decorator';
 import { UserRole } from '../../../auth/interfaces/auth.interface';
 import { OnboardingService } from '../../application/services/onboarding.service';
 import { CompanyService } from '../../application/services/company.service';
-import { CreateCompanyDto, CompanyResponseDto } from '../../application/dtos';
+import { 
+  CreateCompanyDto, 
+  CompanyResponseDto,
+  AddServiceAreaDto,
+  UpdateServiceAreaDto,
+  RemoveServiceAreaDto,
+  BatchUpdateServiceAreasDto,
+  CreatePricingDto,
+  UpdatePricingDto,
+  PricingResponseDto,
+  CalculatePriceDto,
+  PriceCalculationResponseDto,
+} from '../../application/dtos';
 
 interface AuthenticatedRequest {
   user: {
@@ -172,5 +186,150 @@ export class AdminCompanyController {
     activeRiders: number;
   }> {
     return this.companyService.getAdminStatsSummary();
+  }
+
+  // ==================== SERVICE AREA MANAGEMENT ====================
+
+  /**
+   * Add a service area to a company (Admin)
+   */
+  @Post(':id/service-areas')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Add a service area to a company' })
+  @ApiResponse({ status: 201, description: 'Service area added successfully' })
+  async addServiceArea(
+    @Param('id') companyId: string,
+    @Body() dto: AddServiceAreaDto,
+  ): Promise<CompanyResponseDto> {
+    const company = await this.companyService.addServiceArea(companyId, dto.serviceArea);
+    return this.companyService.mapToResponse(company);
+  }
+
+  /**
+   * Update a company's service area (Admin)
+   */
+  @Patch(':id/service-areas')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update a service area by state' })
+  @ApiResponse({ status: 200, description: 'Service area updated successfully' })
+  async updateServiceArea(
+    @Param('id') companyId: string,
+    @Body() updates: UpdateServiceAreaDto,
+  ): Promise<CompanyResponseDto> {
+    const company = await this.companyService.updateServiceArea(companyId, updates);
+    return this.companyService.mapToResponse(company);
+  }
+
+  /**
+   * Remove a service area from a company (Admin)
+   */
+  @Delete(':id/service-areas')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Remove a service area by state' })
+  @ApiResponse({ status: 200, description: 'Service area removed successfully' })
+  async removeServiceArea(
+    @Param('id') companyId: string,
+    @Body() dto: RemoveServiceAreaDto,
+  ): Promise<CompanyResponseDto> {
+    const company = await this.companyService.removeServiceArea(companyId, dto.state);
+    return this.companyService.mapToResponse(company);
+  }
+
+  /**
+   * Batch update all service areas for a company (Admin)
+   */
+  @Put(':id/service-areas')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Replace all service areas for a company' })
+  @ApiResponse({ status: 200, description: 'Service areas updated successfully' })
+  async batchUpdateServiceAreas(
+    @Param('id') companyId: string,
+    @Body() dto: BatchUpdateServiceAreasDto,
+  ): Promise<CompanyResponseDto> {
+    const company = await this.companyService.batchUpdateServiceAreas(companyId, dto.serviceAreas);
+    return this.companyService.mapToResponse(company);
+  }
+
+  // ==================== PRICING ENDPOINTS ====================
+
+  /**
+   * Get all pricing rules for a company
+   */
+  @Get(':id/pricing')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get all pricing rules for a company' })
+  @ApiResponse({ status: 200, description: 'Pricing rules retrieved successfully' })
+  async getPricing(
+    @Param('id') companyId: string,
+  ): Promise<PricingResponseDto[]> {
+    return this.companyService.getPricing(companyId);
+  }
+
+  /**
+   * Add a new pricing rule to a company
+   */
+  @Post(':id/pricing')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Add a pricing rule to a company' })
+  @ApiResponse({ status: 201, description: 'Pricing rule added successfully' })
+  @ApiResponse({ status: 409, description: 'Pricing rule already exists for this location' })
+  async addPricing(
+    @Param('id') companyId: string,
+    @Body() dto: CreatePricingDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<PricingResponseDto> {
+    return this.companyService.addPricing(companyId, dto, req.user.uid);
+  }
+
+  /**
+   * Update an existing pricing rule
+   */
+  @Patch(':id/pricing/:pricingId')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update a pricing rule' })
+  @ApiResponse({ status: 200, description: 'Pricing rule updated successfully' })
+  @ApiResponse({ status: 404, description: 'Pricing rule not found' })
+  async updatePricing(
+    @Param('id') companyId: string,
+    @Param('pricingId') pricingId: string,
+    @Body() dto: UpdatePricingDto,
+  ): Promise<PricingResponseDto> {
+    return this.companyService.updatePricing(companyId, pricingId, dto);
+  }
+
+  /**
+   * Delete a pricing rule
+   */
+  @Delete(':id/pricing/:pricingId')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Delete a pricing rule' })
+  @ApiResponse({ status: 200, description: 'Pricing rule deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Pricing rule not found' })
+  @HttpCode(HttpStatus.OK)
+  async deletePricing(
+    @Param('id') companyId: string,
+    @Param('pricingId') pricingId: string,
+  ): Promise<{ message: string }> {
+    await this.companyService.deletePricing(companyId, pricingId);
+    return { message: 'Pricing rule deleted successfully' };
+  }
+
+  /**
+   * Calculate price for a location (testing/preview)
+   */
+  @Post(':id/pricing/calculate')
+  @AuthWithRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Calculate price for a specific location' })
+  @ApiResponse({ status: 200, description: 'Price calculated successfully' })
+  async calculatePrice(
+    @Param('id') companyId: string,
+    @Body() dto: CalculatePriceDto,
+  ): Promise<PriceCalculationResponseDto> {
+    return this.companyService.calculatePrice(
+      companyId,
+      { state: dto.state, lga: dto.lga, locality: dto.locality },
+      dto.distanceKm,
+      dto.applySurcharges, // Pass the array directly
+    );
   }
 }

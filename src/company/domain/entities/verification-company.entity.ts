@@ -1,13 +1,15 @@
+import { ServiceAreaPricing } from './service-area-pricing.entity';
+
 /**
  * Verification Company Entity
  * Represents a company that employs riders to perform verifications
  */
 
 export interface ServiceArea {
-  city: string;
+  lga: string; // Local Government Area (Required)
+  localities?: string[]; // Specific areas/neighborhoods within LGA (optional, empty = serve entire LGA)
   state: string;
   country: string;
-  lgas?: string[]; // Local Government Areas
   coordinates?: {
     lat: number;
     lng: number;
@@ -73,6 +75,9 @@ export interface VerificationCompany {
   // Service Areas
   serviceAreas: ServiceArea[];
   
+  // Pricing (location-based)
+  pricing?: ServiceAreaPricing[];
+  
   // Settings
   settings: CompanySettings;
   
@@ -123,6 +128,7 @@ export class VerificationCompanyEntity implements VerificationCompany {
   state: string;
   country: string;
   serviceAreas: ServiceArea[];
+  pricing?: ServiceAreaPricing[];
   settings: CompanySettings;
   status: CompanyStatus;
   isVerified: boolean;

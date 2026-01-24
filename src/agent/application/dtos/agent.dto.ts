@@ -12,6 +12,7 @@ import {
   Max,
   ArrayMinSize,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { VerificationSpecialization, AgentStatus, AvailabilityStatus } from '../../domain/enums/agent.enum';
 
 /**
@@ -267,7 +268,13 @@ export class AgentQueryDto {
   @IsOptional()
   specialization?: VerificationSpecialization;
 
+  @ApiPropertyOptional({ description: 'Filter by partner type (individual or company)', enum: ['individual', 'company'] })
+  @IsString()
+  @IsOptional()
+  partnerType?: 'individual' | 'company';
+
   @ApiPropertyOptional({ description: 'Limit results', example: 20, minimum: 1, maximum: 100 })
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   @Min(1)
@@ -275,6 +282,7 @@ export class AgentQueryDto {
   limit?: number;
 
   @ApiPropertyOptional({ description: 'Offset for pagination', example: 0, minimum: 0 })
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   @Min(0)

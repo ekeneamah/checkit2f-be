@@ -16,6 +16,7 @@ import { GetVerificationRequestsUseCase } from '../verification-request/applicat
 import { GetAgentUseCase } from '../agent/application/use-cases/get-agent.use-case';
 import { IVerificationRequestRepository } from '../verification-request/application/interfaces/verification-request.repository.interface';
 import { AgentStatus } from '../agent/domain/enums/agent.enum';
+import { CompanyRepository } from '../company/infrastructure/repositories/company.repository';
 
 /**
  * Admin Dashboard Controller
@@ -34,6 +35,7 @@ export class AdminDashboardController {
     private readonly getAgentUseCase: GetAgentUseCase,
     @Inject('IVerificationRequestRepository')
     private readonly verificationRequestRepository: IVerificationRequestRepository,
+    private readonly companyRepository: CompanyRepository,
   ) {}
 
   /**
@@ -89,10 +91,16 @@ export class AdminDashboardController {
         .filter((r) => r.status.status === 'COMPLETED')
         .reduce((sum, r) => sum + r.price.amount, 0);
 
-      // Get agent stats
+      // Get agent stats (individual agents)
       const agents = await this.getAgentUseCase.getAll(1000, 0);
-      const totalAgents = agents.length;
-      const activeAgents = agents.filter((a) => a.status === AgentStatus.ACTIVE).length;
+      
+      // Get company stats (companies are also agents/partners)
+      const companies = await this.companyRepository.getAllCompanies({ limit: 1000 });
+      
+      // Total agents = individual agents + companies
+      const totalAgents = agents.length + companies.length;
+      const activeAgents = agents.filter((a) => a.status === AgentStatus.ACTIVE).length + 
+                          companies.filter((c) => c.status === 'active').length;
 
       // Calculate pending payments (from active requests)
       const pendingPayments = allRequests.items

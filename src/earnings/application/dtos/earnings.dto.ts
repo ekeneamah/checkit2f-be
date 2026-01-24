@@ -127,6 +127,7 @@ export class GetLeaderboardDto {
 
   @ApiPropertyOptional({ description: 'Limit results', default: 10, maximum: 100 })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @Max(100)

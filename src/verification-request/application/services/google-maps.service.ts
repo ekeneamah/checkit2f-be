@@ -61,13 +61,13 @@ export class GoogleMapsService {
     }
 
     try {
-      this.citiesCache = await this.locationPricingService.getDistinctCities();
+      this.citiesCache = await this.locationPricingService.getDistinctStates();
       this.citiesCacheExpiry = new Date(now.getTime() + this.CACHE_TTL_MINUTES * 60 * 1000);
-      this.logger.log(`Cities cache refreshed: ${this.citiesCache.length} cities`);
+      this.logger.log(`States cache refreshed: ${this.citiesCache.length} states`);
       return this.citiesCache;
     } catch (error) {
-      this.logger.warn(`Failed to fetch cities from database: ${error.message}`);
-      // Return default cities if database fetch fails
+      this.logger.warn(`Failed to fetch states from database: ${error.message}`);
+      // Return default states if database fetch fails
       return this.getDefaultCities();
     }
   }
@@ -103,13 +103,15 @@ export class GoogleMapsService {
       
       // Calculate pricing if city is extracted
       let pricing: PriceCalculationResult | undefined;
-      if (geminiResult.city) {
+      if (geminiResult.state && geminiResult.lga) {
         try {
           pricing = await this.locationPricingService.calculateLocationPrice(
-            geminiResult.city,
-            geminiResult.area
+            geminiResult.state,
+            geminiResult.lga,
+            geminiResult.locality,
+            0 // Default distance for initial pricing
           );
-          this.logger.log(`Pricing calculated: ₦${pricing.totalCost} (${pricing.pricingSource})`);
+          this.logger.log(`Pricing calculated: ₦${pricing.finalPrice} (${pricing.pricingSource})`);
         } catch (error) {
           this.logger.warn(`Pricing calculation failed: ${error.message}`);
         }
@@ -140,51 +142,53 @@ export class GoogleMapsService {
   /**
    * Use Gemini AI to extract area and city from formatted address when Google components fail
    */
-  private async extractAreaWithGemini(formattedAddress: string): Promise<{ area: string | null; city: string | null }> {
+  private async extractAreaWithGemini(formattedAddress: string): Promise<{ 
+    area: string | null; 
+    city: string | null;
+    state?: string | null;
+    lga?: string | null;
+    locality?: string | null;
+  }> {
     // Get cities from database
     const cities = await this.getCachedCities();
     const citiesList = cities.join(', ');
     
-    const prompt = `Extract the area/neighborhood and city from this Nigerian address or search query:
+    const prompt = `Extract location details from this Nigerian address or search query:
 "${formattedAddress}"
 
 Return only a JSON response in this exact format:
-{"area": "area_name_or_null", "city": "city_name"}
+{"state": "state_name", "lga": "lga_name", "locality": "locality_name_or_null", "area": "area_name_or_null", "city": "city_name"}
 
-IMPORTANT - Nigerian Cities (these are CITIES, not areas):
+IMPORTANT - Nigerian Structure:
+- Nigeria has 36 States + FCT
+- Each State has Local Government Areas (LGAs)
+- Each LGA has Localities/Neighborhoods
+
+Legacy Cities (for backward compatibility):
 ${citiesList}
 
-Also recognize variations like:
-- "PH" or "Portharcourt" = "Port Harcourt"
-- "FCT" = "Abuja"
-
-If a user mentions ONLY a city name (like "Port Harcourt" or "Lagos") without a specific area, return area as null.
-
 Examples:
-- "18 Idris Akere St, Egan igando, Lagos 102213, Lagos" → {"area": "Igando", "city": "Lagos"}
-- "Victoria Island, Lagos" → {"area": "Victoria Island", "city": "Lagos"}
-- "Plot 123, Garki, Abuja" → {"area": "Garki", "city": "Abuja"}
-- "Lekki Phase 1, Lagos" → {"area": "Lekki Phase 1", "city": "Lagos"}
-- "Find me a hotel in Port Harcourt" → {"area": null, "city": "Port Harcourt"}
-- "3-star hotel Port Harcourt" → {"area": null, "city": "Port Harcourt"}
-- "restaurant in Rumuokoro Port Harcourt" → {"area": "Rumuokoro", "city": "Port Harcourt"}
-- "hotel in GRA Phase 2 Port Harcourt" → {"area": "GRA Phase 2", "city": "Port Harcourt"}
-- "find me a hotel in Lagos" → {"area": null, "city": "Lagos"}
-- "hotel Ikeja Lagos" → {"area": "Ikeja", "city": "Lagos"}
+- "18 Idris Akere St, Egan igando, Lagos 102213, Lagos" → {"state": "Lagos", "lga": "Alimosho", "locality": "Igando", "area": "Igando", "city": "Lagos"}
+- "Victoria Island, Lagos" → {"state": "Lagos", "lga": "Eti-Osa", "locality": "Victoria Island", "area": "Victoria Island", "city": "Lagos"}
+- "Plot 123, Garki, Abuja" → {"state": "FCT", "lga": "Abuja Municipal", "locality": "Garki", "area": "Garki", "city": "Abuja"}
+- "Old GRA, Port Harcourt" → {"state": "Rivers", "lga": "Port Harcourt City", "locality": "Old GRA", "area": "Old GRA", "city": "Port Harcourt"}
+- "Abuloma, Port Harcourt" → {"state": "Rivers", "lga": "Port Harcourt City", "locality": "Abuloma", "area": "Abuloma", "city": "Port Harcourt"}
+- "Trans Amadi, Port Harcourt" → {"state": "Rivers", "lga": "Obio/Akpor", "locality": "Trans Amadi", "area": "Trans Amadi", "city": "Port Harcourt"}
 
 Rules:
-- If the query mentions ONLY a city name without a specific neighborhood/area, set area to null
-- The cities listed above are CITIES not areas
-- Areas are neighborhoods within cities (e.g., Victoria Island, Ikeja, Lekki, GRA, Rumuokoro)
-- Always extract the main city correctly
-- Match city names case-insensitively`;
+- Always try to extract state, lga, and locality
+- Use the FULL official LGA name (e.g., "Port Harcourt City" not "Port Harcourt", "Obio/Akpor" not "Obio-Akpor")
+- LGA is NOT the same as city - cities can have multiple LGAs (e.g., Port Harcourt city has "Port Harcourt City" and "Obio/Akpor" LGAs)
+- If locality is not mentioned, set it to null
+- Keep area and city for backward compatibility
+- Match names case-insensitively`;
 
     try {
       const response = await this.geminiService.simpleChat(
         prompt,
         undefined, // no system context needed
         0.1, // Low temperature for consistent extraction
-        100, // Max tokens
+        150, // Max tokens
       );
       
       const cleanResponse = response.trim().replace(/```json\n?|```\n?/g, '');
@@ -192,7 +196,10 @@ Rules:
       
       return { 
         area: parsed.area === "null" || parsed.area === null ? null : parsed.area, 
-        city: parsed.city 
+        city: parsed.city,
+        state: parsed.state === "null" || parsed.state === null ? null : parsed.state,
+        lga: parsed.lga === "null" || parsed.lga === null ? null : parsed.lga,
+        locality: parsed.locality === "null" || parsed.locality === null ? null : parsed.locality,
       };
     } catch (error) {
       this.logger.warn(`Gemini area extraction failed for "${formattedAddress}": ${error.message}`);
@@ -206,9 +213,18 @@ Rules:
   private async extractAreaAndCityFromComponents(
     addressComponents: any[], 
     formattedAddress?: string
-  ): Promise<{ area: string | null; city: string | null }> {
+  ): Promise<{ 
+    area: string | null; 
+    city: string | null;
+    state?: string | null;
+    lga?: string | null;
+    locality?: string | null;
+  }> {
     let area: string | null = null;
     let city: string | null = null;
+    let state: string | null = null;
+    let lga: string | null = null;
+    let locality: string | null = null;
 
     for (const component of addressComponents) {
       const types: string[] = component.types || [];
@@ -243,16 +259,19 @@ Rules:
         const geminiResult = await this.extractAreaWithGemini(formattedAddress);
         area = area || geminiResult.area;
         city = city || geminiResult.city;
+        state = geminiResult.state;
+        lga = geminiResult.lga;
+        locality = geminiResult.locality;
         
         if (geminiResult.area || geminiResult.city) {
-          this.logger.log(`Gemini enhanced extraction: area="${geminiResult.area}", city="${geminiResult.city}"`);
+          this.logger.log(`Gemini enhanced extraction: area="${geminiResult.area}", city="${geminiResult.city}", state="${geminiResult.state}", lga="${geminiResult.lga}", locality="${geminiResult.locality}"`);
         }
       } catch (error) {
         this.logger.warn(`Gemini fallback failed: ${error.message}`);
       }
     }
 
-    return { area, city };
+    return { area, city, state, lga, locality };
   }
 
   /**
@@ -483,6 +502,9 @@ Rules:
       // Extract area and city from address components if available
       let area: string | null = null;
       let city: string | null = null;
+      let state: string | null = null;
+      let lga: string | null = null;
+      let locality: string | null = null;
       
       if (place.address_components) {
         const extracted = await this.extractAreaAndCityFromComponents(
@@ -491,6 +513,9 @@ Rules:
         );
         area = extracted.area;
         city = extracted.city;
+        state = extracted.state || null;
+        lga = extracted.lga || null;
+        locality = extracted.locality || null;
       }
       
       // Fallback to formatted address parsing if components not available
@@ -504,6 +529,9 @@ Rules:
         formatted_address: place.formatted_address || place.vicinity || 'No address',
         city,
         area,
+        state,
+        lga,
+        locality,
         lat: place.geometry.location.lat,
         lng: place.geometry.location.lng,
         rating: place.rating,

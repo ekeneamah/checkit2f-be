@@ -13,6 +13,9 @@ export class Location {
     private readonly _landmark?: string,
     private readonly _accessInstructions?: string,
     private readonly _name?: string,
+    private readonly _state?: string,
+    private readonly _lga?: string,
+    private readonly _locality?: string,
   ) {
     this.validateAddress();
     this.validateCoordinates();
@@ -32,6 +35,18 @@ export class Location {
 
   get area(): string {
     return this._area;
+  }
+
+  get state(): string | undefined {
+    return this._state;
+  }
+
+  get lga(): string | undefined {
+    return this._lga;
+  }
+
+  get locality(): string | undefined {
+    return this._locality;
   }
 
   get latitude(): number {
@@ -131,6 +146,9 @@ export class Location {
       name: this._name,
       city: this._city,
       area: this._area,
+      state: this._state,
+      lga: this._lga,
+      locality: this._locality,
       latitude: this._latitude,
       longitude: this._longitude,
       placeId: this._placeId,
@@ -153,6 +171,9 @@ export class Location {
       data.landmark,
       data.accessInstructions,
       data.name,
+      data.state,
+      data.lga,
+      data.locality,
     );
   }
 }

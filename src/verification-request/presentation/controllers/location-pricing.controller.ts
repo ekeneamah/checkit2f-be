@@ -46,16 +46,16 @@ export class LocationPricingController {
   @Public()
   @Get('cities')
   @ApiOperation({
-    summary: 'Get all cities',
-    description: 'Get all cities that have pricing configurations',
+    summary: 'Get all states',
+    description: 'Get all states that have pricing configurations',
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Cities retrieved successfully',
+    description: 'States retrieved successfully',
     type: [String],
   })
   async getCities(): Promise<string[]> {
-    return await this.locationPricingService.getDistinctCities();
+    return await this.locationPricingService.getDistinctStates();
   }
 
   /**
@@ -75,7 +75,7 @@ export class LocationPricingController {
   })
   @ApiBadRequestResponse({ description: 'Invalid pricing data or duplicate configuration' })
   async createPricing(@Body() createDto: CreateLocationPricingDto): Promise<LocationPricingResponseDto> {
-    this.logger.log(`Creating pricing for ${createDto.city}${createDto.area ? ` - ${createDto.area}` : ''}`);
+    this.logger.log(`Creating pricing for ${createDto.state} → ${createDto.lga}${createDto.locality ? ` → ${createDto.locality}` : ''}`);
     
     const pricing = await this.locationPricingService.createLocationPricing({
       ...createDto,
@@ -187,17 +187,17 @@ export class LocationPricingController {
   @Public()
   @Get('city/:city/areas')
   @ApiOperation({
-    summary: 'Get city areas with pricing',
-    description: 'Get all areas with pricing configurations for a specific city',
+    summary: 'Get LGA localities with pricing',
+    description: 'Get all localities with pricing configurations for a specific state and LGA',
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Areas with pricing retrieved successfully',
+    description: 'Localities with pricing retrieved successfully',
     type: [LocationPricingResponseDto],
   })
-  async getCityAreas(@Param('city') city: string): Promise<LocationPricingResponseDto[]> {
-    const areas = await this.locationPricingService.getCityAreasWithPricing(city);
-    return areas as LocationPricingResponseDto[];
+  async getCityAreas(@Param('state') state: string, @Param('lga') lga: string): Promise<LocationPricingResponseDto[]> {
+    const localities = await this.locationPricingService.getLGALocalitiesWithPricing(state, lga);
+    return localities as LocationPricingResponseDto[];
   }
 
   /**
@@ -209,7 +209,7 @@ export class LocationPricingController {
     summary: 'Search location pricing',
     description: 'Search pricing configurations by city or area name',
   })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter by status' })
+  @ApiQuery({ name: 'isActive', required: false, description: 'Filter by active status', type: Boolean })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Search results retrieved successfully',
@@ -217,9 +217,10 @@ export class LocationPricingController {
   })
   async searchPricing(
     @Param('query') query: string,
-    @Query('status') status?: string,
+    @Query('isActive') isActive?: string,
   ): Promise<LocationPricingResponseDto[]> {
-    const results = await this.locationPricingService.searchLocationPricing(query, status);
+    const isActiveBoolean = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+    const results = await this.locationPricingService.searchLocationPricing(query, isActiveBoolean);
     return results as LocationPricingResponseDto[];
   }
 

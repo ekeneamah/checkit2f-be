@@ -5,7 +5,7 @@ import { LocationPricing, LocationPricingCreateDto, LocationPricingUpdateDto, Pr
 /**
  * Location Pricing Service
  * Handles business logic for location-based pricing calculations
- * Follows DRY principles with centralized pricing logic
+ * Follows hierarchical pricing: Locality → LGA → State → Default
  */
 @Injectable()
 export class LocationPricingService {
@@ -13,8 +13,9 @@ export class LocationPricingService {
 
   // Default pricing configuration
   private readonly defaultPricing = {
-    cityCost: 5000, // Default city cost in Naira
-    areaCost: 0,    // Default area cost
+    basePrice: 5000,
+    pricePerKm: 200,
+    minimumCharge: 3000,
   };
 
   constructor(
@@ -23,36 +24,50 @@ export class LocationPricingService {
   ) {}
 
   /**
-   * Calculate price for a specific location
+   * Calculate price for a specific location and distance
    * Implements tiered fallback strategy:
-   * 1. Exact match (city + area)
-   * 2. City-only match
-   * 3. Default pricing
+   * 1. Locality-specific match (state + lga + locality)
+   * 2. LGA-wide match (state + lga)
+   * 3. State-wide match (state only)
+   * 4. Default pricing
    */
-  async calculateLocationPrice(city: string, area?: string | null): Promise<PriceCalculationResult> {
+  async calculateLocationPrice(
+    state: string, 
+    lga: string, 
+    locality?: string | null,
+    distanceKm?: number
+  ): Promise<PriceCalculationResult> {
+    const distance = distanceKm || 0;
+    
     try {
-      this.logger.log(`Calculating price for: ${city}${area ? ` - ${area}` : ''}`);
+      this.logger.log(`Calculating price for: ${state} → ${lga}${locality ? ` → ${locality}` : ''}, Distance: ${distance}km`);
 
-      // Strategy 1: Try exact match (city + area)
-      if (area) {
-        const exactMatch = await this.pricingRepository.findByLocationExact(city, area);
-        if (exactMatch && this.isPricingActive(exactMatch)) {
-          return this.buildPriceResult(exactMatch, 'exact_match');
+      // Strategy 1: Try locality-specific match
+      if (locality) {
+        const localityMatch = await this.pricingRepository.findByLocationExact(state, lga, locality);
+        if (localityMatch && this.isPricingActive(localityMatch)) {
+          return this.buildPriceResult(localityMatch, 'locality_match', distance);
         }
       }
 
-      // Strategy 2: Try city-only match
-      const cityMatch = await this.pricingRepository.findByCityOnly(city);
-      if (cityMatch && this.isPricingActive(cityMatch)) {
-        return this.buildPriceResult(cityMatch, 'city_fallback', area);
+      // Strategy 2: Try LGA-wide match
+      const lgaMatch = await this.pricingRepository.findByLGAOnly(state, lga);
+      if (lgaMatch && this.isPricingActive(lgaMatch)) {
+        return this.buildPriceResult(lgaMatch, 'lga_match', distance);
       }
 
-      // Strategy 3: Default pricing
-      return this.buildDefaultPriceResult(city, area);
+      // Strategy 3: Try state-wide match
+      const stateMatch = await this.pricingRepository.findByStateOnly(state);
+      if (stateMatch && this.isPricingActive(stateMatch)) {
+        return this.buildPriceResult(stateMatch, 'state_match', distance);
+      }
+
+      // Strategy 4: Default pricing
+      return this.buildDefaultPriceResult(state, lga, locality, distance);
 
     } catch (error) {
-      this.logger.error(`Price calculation failed for ${city}${area ? ` - ${area}` : ''}: ${error.message}`);
-      return this.buildDefaultPriceResult(city, area);
+      this.logger.error(`Price calculation failed for ${state} → ${lga}: ${error.message}`);
+      return this.buildDefaultPriceResult(state, lga, locality, distance);
     }
   }
 
@@ -62,12 +77,15 @@ export class LocationPricingService {
   async createLocationPricing(data: LocationPricingCreateDto): Promise<LocationPricing> {
     try {
       // Validate no duplicate active pricing exists
-      const existing = await this.pricingRepository.findByLocationExact(data.city, data.area);
-      if (existing && existing.status === 'active') {
-        throw new Error(`Active pricing already exists for ${data.city}${data.area ? ` - ${data.area}` : ''}`);
+      const existing = await this.pricingRepository.findByLocationExact(data.state, data.lga, data.locality);
+      if (existing && existing.isActive) {
+        throw new Error(`Active pricing already exists for ${data.state} → ${data.lga}${data.locality ? ` → ${data.locality}` : ''}`);
       }
 
-      return await this.pricingRepository.create(data);
+      return await this.pricingRepository.create({
+        ...data,
+        isActive: data.isActive !== undefined ? data.isActive : true,
+      });
     } catch (error) {
       this.logger.error(`Failed to create location pricing: ${error.message}`);
       throw error;
@@ -117,31 +135,38 @@ export class LocationPricingService {
   }
 
   /**
-   * Get all areas with pricing for a specific city
+   * Get all areas with pricing for a specific LGA
    */
-  async getCityAreasWithPricing(city: string): Promise<LocationPricing[]> {
-    return await this.pricingRepository.findActiveByCityWithAreas(city);
+  async getLGALocalitiesWithPricing(state: string, lga: string): Promise<LocationPricing[]> {
+    return await this.pricingRepository.findActiveByLGAWithLocalities(state, lga);
   }
 
   /**
    * Search pricing configurations
    */
-  async searchLocationPricing(query: string, status?: string): Promise<LocationPricing[]> {
-    return await this.pricingRepository.search(query, status);
+  async searchLocationPricing(query: string, isActive?: boolean): Promise<LocationPricing[]> {
+    return await this.pricingRepository.search(query, isActive);
   }
 
   /**
-   * Get all distinct cities with pricing
+   * Get all distinct states with pricing
    */
-  async getDistinctCities(): Promise<string[]> {
-    return await this.pricingRepository.findDistinctCities();
+  async getDistinctStates(): Promise<string[]> {
+    return await this.pricingRepository.findDistinctStates();
+  }
+
+  /**
+   * Get all distinct LGAs for a state
+   */
+  async getDistinctLGAsForState(state: string): Promise<string[]> {
+    return await this.pricingRepository.findDistinctLGAsForState(state);
   }
 
   /**
    * Check if pricing configuration is currently active
    */
   private isPricingActive(pricing: LocationPricing): boolean {
-    if (pricing.status !== 'active') {
+    if (!pricing.isActive) {
       return false;
     }
 
@@ -163,21 +188,48 @@ export class LocationPricingService {
    */
   private buildPriceResult(
     pricing: LocationPricing, 
-    source: 'exact_match' | 'city_fallback',
-    area?: string | null
+    source: 'locality_match' | 'lga_match' | 'state_match',
+    distance: number
   ): PriceCalculationResult {
-    // For exact matches, show the area cost as the primary cost
-    // For city fallbacks, show the city cost as the primary cost
-    const primaryCost = source === 'exact_match' && pricing.areaCost > 0 
-      ? pricing.areaCost 
-      : pricing.cityCost;
+    const calculatedPrice = pricing.basePrice + (pricing.pricePerKm * distance);
+    
+    // Apply minimum and maximum constraints
+    let finalPrice = calculatedPrice;
+    if (pricing.minimumCharge && finalPrice < pricing.minimumCharge) {
+      finalPrice = pricing.minimumCharge;
+    }
+    if (pricing.maximumCharge && finalPrice > pricing.maximumCharge) {
+      finalPrice = pricing.maximumCharge;
+    }
+
+    // Apply surcharges
+    const appliedSurcharges: Array<{ type: string; value: number; amount: number }> = [];
+    if (pricing.surcharges && pricing.surcharges.length > 0) {
+      for (const surcharge of pricing.surcharges) {
+        const amount = surcharge.isPercentage 
+          ? (finalPrice * surcharge.value / 100)
+          : surcharge.value;
+        
+        appliedSurcharges.push({
+          type: surcharge.type,
+          value: surcharge.value,
+          amount,
+        });
+        
+        finalPrice += amount;
+      }
+    }
 
     return {
-      city: pricing.city,
-      area: area || pricing.area,
-      cityCost: pricing.cityCost,
-      areaCost: pricing.areaCost,
-      totalCost: primaryCost, // Show single relevant price, not sum
+      state: pricing.state,
+      lga: pricing.lga,
+      locality: pricing.locality,
+      basePrice: pricing.basePrice,
+      pricePerKm: pricing.pricePerKm,
+      distance,
+      calculatedPrice,
+      appliedSurcharges: appliedSurcharges.length > 0 ? appliedSurcharges : undefined,
+      finalPrice,
       pricingSource: source,
       appliedPricingId: pricing.id,
     };
@@ -186,15 +238,26 @@ export class LocationPricingService {
   /**
    * Build default price result when no pricing configuration found
    */
-  private buildDefaultPriceResult(city: string, area?: string | null): PriceCalculationResult {
-    this.logger.warn(`No pricing configuration found for ${city}${area ? ` - ${area}` : ''}, using default pricing`);
+  private buildDefaultPriceResult(
+    state: string, 
+    lga: string, 
+    locality?: string | null,
+    distance: number = 0
+  ): PriceCalculationResult {
+    this.logger.warn(`No pricing configuration found for ${state} → ${lga}${locality ? ` → ${locality}` : ''}, using default pricing`);
+    
+    const calculatedPrice = this.defaultPricing.basePrice + (this.defaultPricing.pricePerKm * distance);
+    const finalPrice = Math.max(calculatedPrice, this.defaultPricing.minimumCharge);
     
     return {
-      city,
-      area,
-      cityCost: this.defaultPricing.cityCost,
-      areaCost: this.defaultPricing.areaCost,
-      totalCost: this.defaultPricing.cityCost, // Show default city cost only
+      state,
+      lga,
+      locality,
+      basePrice: this.defaultPricing.basePrice,
+      pricePerKm: this.defaultPricing.pricePerKm,
+      distance,
+      calculatedPrice,
+      finalPrice,
       pricingSource: 'default',
     };
   }
@@ -210,7 +273,7 @@ export class LocationPricingService {
         const pricing = await this.createLocationPricing(config);
         results.push(pricing);
       } catch (error) {
-        this.logger.warn(`Failed to create pricing for ${config.city}${config.area ? ` - ${config.area}` : ''}: ${error.message}`);
+        this.logger.warn(`Failed to create pricing for ${config.state} → ${config.lga}${config.locality ? ` → ${config.locality}` : ''}: ${error.message}`);
       }
     }
 

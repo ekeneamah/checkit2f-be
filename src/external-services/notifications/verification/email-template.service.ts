@@ -571,19 +571,21 @@ export class EmailTemplateService {
           <span class="info-value">${new Date(payload.scheduledDate).toLocaleString()}</span>
         </div>
         ` : ''}
-        ${payload.estimatedDuration ? `
-        <div class="info-row">
-          <span class="info-label">Estimated Duration</span>
-          <span class="info-value">${payload.estimatedDuration}</span>
-        </div>
-        ` : ''}
       </div>
       
-      <p>You'll receive updates as the verification progresses.</p>
+      <div style="background-color: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 4px;">
+        <p style="margin: 0; color: #1e40af; font-weight: 500;">
+          ⏱️ You can expect updates within the next 24 hours as per our service agreement.
+        </p>
+      </div>
+      
+      <p>You'll receive notifications as the verification progresses.</p>
       
       <center>
-        <a href="${this.appUrl}/dashboard/requests/${payload.requestId}" class="button">Track Progress</a>
+        <a href="${this.appUrl}/dashboard/requests/${payload.requestId}" class="button">View Request Details</a>
       </center>
+      
+      <p>If you have any questions or concerns, please contact us immediately.</p>
       
       <p>Best regards,<br>The ${this.companyName} Team</p>
     `;

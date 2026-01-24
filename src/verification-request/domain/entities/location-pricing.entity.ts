@@ -1,14 +1,26 @@
 /**
  * Location Pricing Entity
- * Represents pricing configuration for specific city and area combinations
+ * Represents pricing configuration for specific State → LGA → Locality combinations
  */
+
+export interface Surcharge {
+  type: 'weekend' | 'holiday' | 'night' | 'rush_hour' | 'custom';
+  value: number;
+  isPercentage: boolean;
+  description?: string;
+}
+
 export interface LocationPricing {
   id: string;
-  city: string;
-  area?: string | null; // Optional area - if null, applies to entire city
-  cityCost: number; // Base cost for the city
-  areaCost: number; // Additional cost for the specific area (0 if area is null)
-  status: 'active' | 'inactive' | 'suspended';
+  state: string;
+  lga: string;
+  locality?: string | null; // Optional locality - if null, applies to entire LGA
+  basePrice: number;
+  pricePerKm: number;
+  minimumCharge?: number;
+  maximumCharge?: number;
+  surcharges?: Surcharge[];
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   
@@ -19,31 +31,42 @@ export interface LocationPricing {
 }
 
 export interface LocationPricingCreateDto {
-  city: string;
-  area?: string | null;
-  cityCost: number;
-  areaCost: number;
-  status?: 'active' | 'inactive' | 'suspended';
+  state: string;
+  lga: string;
+  locality?: string | null;
+  basePrice: number;
+  pricePerKm: number;
+  minimumCharge?: number;
+  maximumCharge?: number;
+  surcharges?: Surcharge[];
+  isActive?: boolean;
   description?: string;
   effectiveFrom?: Date;
   effectiveTo?: Date;
 }
 
 export interface LocationPricingUpdateDto {
-  cityCost?: number;
-  areaCost?: number;
-  status?: 'active' | 'inactive' | 'suspended';
+  basePrice?: number;
+  pricePerKm?: number;
+  minimumCharge?: number;
+  maximumCharge?: number;
+  surcharges?: Surcharge[];
+  isActive?: boolean;
   description?: string;
   effectiveFrom?: Date;
   effectiveTo?: Date;
 }
 
 export interface PriceCalculationResult {
-  city: string;
-  area?: string | null;
-  cityCost: number;
-  areaCost: number;
-  totalCost: number;
-  pricingSource: 'exact_match' | 'city_fallback' | 'default';
+  state: string;
+  lga: string;
+  locality?: string | null;
+  basePrice: number;
+  pricePerKm: number;
+  distance: number;
+  calculatedPrice: number;
+  appliedSurcharges?: Array<{ type: string; value: number; amount: number }>;
+  finalPrice: number;
+  pricingSource: 'locality_match' | 'lga_match' | 'state_match' | 'default';
   appliedPricingId?: string;
 }

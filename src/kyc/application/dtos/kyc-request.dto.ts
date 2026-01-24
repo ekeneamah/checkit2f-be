@@ -139,6 +139,61 @@ export class KycLocationDto {
 }
 
 /**
+ * Partial Location DTO (all fields optional)
+ * Used for customer confirmation where they can update specific location fields
+ */
+export class PartialKycLocationDto {
+  @ApiPropertyOptional({ description: 'Full address' })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'City' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'State' })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional({ description: 'Country', default: 'Nigeria' })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional({ description: 'Postal code' })
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @ApiPropertyOptional({ description: 'Latitude' })
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @ApiPropertyOptional({ description: 'Longitude' })
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
+
+  @ApiPropertyOptional({ description: 'Nearby landmark' })
+  @IsOptional()
+  @IsString()
+  landmark?: string;
+
+  @ApiPropertyOptional({ description: 'Access instructions' })
+  @IsOptional()
+  @IsString()
+  accessInstructions?: string;
+}
+
+/**
  * Create KYC Request DTO (Bank API)
  */
 export class CreateKycRequestDto {
@@ -331,10 +386,10 @@ export class CancelKycRequestDto {
  * Customer Confirmation DTO
  */
 export class CustomerConfirmationDto {
-  @ApiProperty({ description: 'Verification token from SMS link' })
+  @ApiPropertyOptional({ description: 'Verification token from SMS link (optional - taken from URL param)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  token: string;
+  token?: string;
 
   @ApiProperty({ description: 'Customer consent given' })
   @IsNotEmpty()
@@ -375,11 +430,11 @@ export class CustomerConfirmationDto {
   @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, { message: 'Time must be in HH:mm format' })
   preferredTimeEnd?: string;
 
-  @ApiPropertyOptional({ description: 'Updated location details', type: KycLocationDto })
+  @ApiPropertyOptional({ description: 'Updated location details (partial - only fields to update)', type: PartialKycLocationDto })
   @IsOptional()
   @ValidateNested()
-  @Type(() => KycLocationDto)
-  updatedLocation?: KycLocationDto;
+  @Type(() => PartialKycLocationDto)
+  updatedLocation?: PartialKycLocationDto;
 }
 
 /**

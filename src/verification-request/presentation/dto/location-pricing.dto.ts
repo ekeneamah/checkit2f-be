@@ -1,49 +1,120 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNumber, IsOptional, IsEnum, IsDateString, Min, IsNotEmpty } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, IsDateString, Min, IsNotEmpty, IsBoolean, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
-export class CreateLocationPricingDto {
+export class SurchargeDto {
   @ApiProperty({
-    description: 'City name',
-    example: 'Lagos',
+    description: 'Surcharge type',
+    enum: ['weekend', 'holiday', 'night', 'rush_hour', 'custom'],
+    example: 'weekend',
   })
-  @IsString()
-  @IsNotEmpty()
-  city: string;
+  @IsEnum(['weekend', 'holiday', 'night', 'rush_hour', 'custom'])
+  type: 'weekend' | 'holiday' | 'night' | 'rush_hour' | 'custom';
+
+  @ApiProperty({
+    description: 'Surcharge value (percentage or fixed amount)',
+    example: 20,
+  })
+  @IsNumber()
+  @Min(0)
+  value: number;
+
+  @ApiProperty({
+    description: 'Whether the surcharge is a percentage or fixed amount',
+    example: true,
+  })
+  @IsBoolean()
+  isPercentage: boolean;
 
   @ApiPropertyOptional({
-    description: 'Area/neighborhood name (optional for city-wide pricing)',
-    example: 'Victoria Island',
+    description: 'Description of the surcharge',
+    example: 'Weekend premium',
   })
   @IsOptional()
   @IsString()
-  area?: string;
+  description?: string;
+}
+
+export class CreateLocationPricingDto {
+  @ApiProperty({
+    description: 'State name',
+    example: 'Rivers',
+  })
+  @IsString()
+  @IsNotEmpty()
+  state: string;
 
   @ApiProperty({
-    description: 'Base cost for the city in Naira',
+    description: 'LGA (Local Government Area) name',
+    example: 'Port Harcourt',
+  })
+  @IsString()
+  @IsNotEmpty()
+  lga: string;
+
+  @ApiPropertyOptional({
+    description: 'Locality/neighborhood name (optional for LGA-wide pricing)',
+    example: 'Old GRA',
+  })
+  @IsOptional()
+  @IsString()
+  locality?: string;
+
+  @ApiProperty({
+    description: 'Base price in Naira',
     example: 5000,
     minimum: 0,
   })
   @IsNumber()
   @Min(0)
-  cityCost: number;
+  basePrice: number;
 
   @ApiProperty({
-    description: 'Additional cost for the specific area in Naira',
-    example: 2000,
+    description: 'Price per kilometer in Naira',
+    example: 200,
     minimum: 0,
   })
   @IsNumber()
   @Min(0)
-  areaCost: number;
+  pricePerKm: number;
 
   @ApiPropertyOptional({
-    description: 'Status of the pricing configuration',
-    enum: ['active', 'inactive', 'suspended'],
-    default: 'active',
+    description: 'Minimum charge in Naira',
+    example: 3000,
+    minimum: 0,
   })
   @IsOptional()
-  @IsEnum(['active', 'inactive', 'suspended'])
-  status?: 'active' | 'inactive' | 'suspended';
+  @IsNumber()
+  @Min(0)
+  minimumCharge?: number;
+
+  @ApiPropertyOptional({
+    description: 'Maximum charge in Naira',
+    example: 50000,
+    minimum: 0,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maximumCharge?: number;
+
+  @ApiPropertyOptional({
+    description: 'Array of surcharges applicable to this pricing',
+    type: [SurchargeDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SurchargeDto)
+  surcharges?: SurchargeDto[];
+
+  @ApiPropertyOptional({
+    description: 'Whether this pricing is active',
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @ApiPropertyOptional({
     description: 'Description of the pricing configuration',
@@ -72,32 +143,61 @@ export class CreateLocationPricingDto {
 
 export class UpdateLocationPricingDto {
   @ApiPropertyOptional({
-    description: 'Base cost for the city in Naira',
+    description: 'Base price in Naira',
     example: 5500,
     minimum: 0,
   })
   @IsOptional()
   @IsNumber()
   @Min(0)
-  cityCost?: number;
+  basePrice?: number;
 
   @ApiPropertyOptional({
-    description: 'Additional cost for the specific area in Naira',
-    example: 2500,
+    description: 'Price per kilometer in Naira',
+    example: 250,
     minimum: 0,
   })
   @IsOptional()
   @IsNumber()
   @Min(0)
-  areaCost?: number;
+  pricePerKm?: number;
 
   @ApiPropertyOptional({
-    description: 'Status of the pricing configuration',
-    enum: ['active', 'inactive', 'suspended'],
+    description: 'Minimum charge in Naira',
+    example: 3500,
+    minimum: 0,
   })
   @IsOptional()
-  @IsEnum(['active', 'inactive', 'suspended'])
-  status?: 'active' | 'inactive' | 'suspended';
+  @IsNumber()
+  @Min(0)
+  minimumCharge?: number;
+
+  @ApiPropertyOptional({
+    description: 'Maximum charge in Naira',
+    example: 60000,
+    minimum: 0,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maximumCharge?: number;
+
+  @ApiPropertyOptional({
+    description: 'Array of surcharges applicable to this pricing',
+    type: [SurchargeDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SurchargeDto)
+  surcharges?: SurchargeDto[];
+
+  @ApiPropertyOptional({
+    description: 'Whether this pricing is active',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @ApiPropertyOptional({
     description: 'Description of the pricing configuration',
@@ -125,28 +225,32 @@ export class LocationPricingResponseDto {
   @ApiProperty({ description: 'Unique identifier' })
   id: string;
 
-  @ApiProperty({ description: 'City name', example: 'Lagos' })
-  city: string;
+  @ApiProperty({ description: 'State name', example: 'Rivers' })
+  state: string;
 
-  @ApiPropertyOptional({ description: 'Area name', example: 'Victoria Island' })
-  area?: string | null;
+  @ApiProperty({ description: 'LGA name', example: 'Port Harcourt' })
+  lga: string;
 
-  @ApiProperty({ description: 'Base cost for the city in Naira', example: 5000 })
-  cityCost: number;
+  @ApiPropertyOptional({ description: 'Locality name', example: 'Old GRA' })
+  locality?: string | null;
 
-  @ApiProperty({ description: 'Additional cost for the area in Naira', example: 2000 })
-  areaCost: number;
+  @ApiProperty({ description: 'Base price in Naira', example: 5000 })
+  basePrice: number;
 
-  @ApiProperty({ description: 'Total cost in Naira', example: 7000 })
-  get totalCost(): number {
-    return this.cityCost + this.areaCost;
-  }
+  @ApiProperty({ description: 'Price per kilometer in Naira', example: 200 })
+  pricePerKm: number;
 
-  @ApiProperty({ 
-    description: 'Status', 
-    enum: ['active', 'inactive', 'suspended'] 
-  })
-  status: string;
+  @ApiPropertyOptional({ description: 'Minimum charge in Naira', example: 3000 })
+  minimumCharge?: number;
+
+  @ApiPropertyOptional({ description: 'Maximum charge in Naira', example: 50000 })
+  maximumCharge?: number;
+
+  @ApiPropertyOptional({ description: 'Surcharges', type: [SurchargeDto] })
+  surcharges?: SurchargeDto[];
+
+  @ApiProperty({ description: 'Whether this pricing is active' })
+  isActive: boolean;
 
   @ApiProperty({ description: 'Creation date' })
   createdAt: Date;

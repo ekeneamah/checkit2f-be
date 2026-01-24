@@ -267,22 +267,23 @@ export class PricingController {
       );
     }
 
-    // For standard_verification, use location-based pricing if city/area provided
+    // For standard_verification, use location-based pricing if state/lga/locality provided
     let locationBasedPrice = null;
     let pricingSource = 'request_type';
     
-    if (requestType.name === 'standard_verification' && dto.city) {
+    if (requestType.name === 'standard_verification' && dto.state && dto.lga) {
       try {
-        const locationPricing = await this.locationPricingService.calculateLocationPrice(dto.city, dto.area);
+        const locationPricing = await this.locationPricingService.calculateLocationPrice(
+          dto.state, 
+          dto.lga, 
+          dto.locality,
+          dto.distanceKm || 0
+        );
         
-        // Use area price if available, otherwise city price (location service returns prices in Naira)
-        if (locationPricing.pricingSource === 'exact_match' && locationPricing.areaCost > 0) {
-          locationBasedPrice = locationPricing.areaCost; // Already in Naira
-          pricingSource = `location_area_${locationPricing.pricingSource}`;
-        } else {
-          locationBasedPrice = locationPricing.cityCost; // Already in Naira  
-          pricingSource = `location_city_${locationPricing.pricingSource}`;
-        }
+        // Use the final calculated price (includes base + distance + surcharges)
+        locationBasedPrice = locationPricing.finalPrice; // Already in Naira
+        pricingSource = `location_${locationPricing.pricingSource}`;
+        
       } catch (error) {
         // Fallback to request type base price if location pricing fails
         console.warn(`Location pricing failed, using base price: ${error.message}`);
@@ -336,9 +337,8 @@ export class PricingController {
     
     if (locationBasedPrice !== null && pricingSource.startsWith('location_')) {
       // Use location-based pricing description
-      const locationDescription = pricingSource.includes('area') 
-        ? `Area-specific pricing (${dto.area}, ${dto.city})`
-        : `City pricing (${dto.city})`;
+      const locationParts = [dto.state, dto.lga, dto.locality].filter(Boolean);
+      const locationDescription = `Location-based pricing (${locationParts.join(' → ')})`;
       breakdown.push({
         description: locationDescription,
         amount: finalResult.totalPrice, // Already in kobo

@@ -67,6 +67,7 @@ import { AdminPricingController } from '../admin/admin-pricing.controller';
     InfrastructureModule, // Import InfrastructureModule to make FirebaseService available
     forwardRef(() => PaymentModule), // Circular-safe import with PaymentModule
     forwardRef(() => require('../agent/agent.module').AgentModule), // Import AgentModule for admin dashboard
+    forwardRef(() => require('../company/company.module').CompanyModule), // Import CompanyModule for company repository
   ],
   providers: [
     // Repository providers

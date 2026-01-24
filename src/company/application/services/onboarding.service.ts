@@ -111,8 +111,8 @@ export class OnboardingService {
     additionalData?: Record<string, any>,
   ): Promise<void> {
     const subject = templateType === 'company'
-      ? 'Welcome to Zigo - Your Company Account is Ready'
-      : 'Welcome to Zigo - Your Rider Account is Ready';
+      ? 'Your Zigo Account - Login Credentials Inside'
+      : 'Your Zigo Rider Account - Login Credentials Inside';
 
     const htmlContent = this.generateInviteEmailHtml(
       recipientName,
@@ -161,66 +161,85 @@ export class OnboardingService {
 
     return `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-    <h1 style="color: white; margin: 0; font-size: 28px;">🎉 ${title}</h1>
-  </div>
-  
-  <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
-    <p style="font-size: 18px; margin-bottom: 20px;">Hello <strong>${name}</strong>,</p>
-    
-    <p>${intro}</p>
-    
-    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 25px 0;">
-      <h3 style="margin-top: 0; color: #374151;">Your Login Credentials</h3>
-      <p style="margin: 10px 0;"><strong>Email:</strong> ${email}</p>
-      <p style="margin: 10px 0;"><strong>Temporary Password:</strong> <code style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-size: 16px;">${password}</code></p>
-    </div>
-    
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="${loginUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 30px; border-radius: 8px; font-weight: bold; font-size: 16px;">Login to Your Account</a>
-    </div>
-    
-    <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
-      <p style="margin: 0; color: #92400e;"><strong>⚠️ Important:</strong> For security reasons, you will be required to change your password when you first log in.</p>
-    </div>
-    
-    ${type === 'company' ? `
-    <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
-      <p style="margin: 0; color: #1e40af;"><strong>💡 Next Steps:</strong></p>
-      <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #1e40af;">
-        <li>Log in and change your password</li>
-        <li>Complete your company profile</li>
-        <li>Add riders to start accepting verification requests</li>
-      </ul>
-    </div>
-    ` : `
-    <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
-      <p style="margin: 0; color: #1e40af;"><strong>💡 Next Steps:</strong></p>
-      <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #1e40af;">
-        <li>Download the Zigo mobile app</li>
-        <li>Log in with your credentials</li>
-        <li>Complete your profile and start accepting tasks</li>
-      </ul>
-    </div>
-    `}
-    
-    <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-      If you didn't expect this email or have any questions, please contact our support team.
-    </p>
-    
-    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-    
-    <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-      © ${new Date().getFullYear()} Zigo Verification Services. All rights reserved.
-    </p>
-  </div>
+<body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+    <tr>
+      <td style="background-color: #2563eb; padding: 30px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: normal;">Zigo Verification Services</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 30px;">
+        <p style="font-size: 16px; margin-bottom: 20px;">Hello ${name},</p>
+        
+        <p style="margin-bottom: 20px;">${intro}</p>
+        
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; margin: 25px 0;">
+          <tr>
+            <td style="padding: 20px;">
+              <h3 style="margin: 0 0 15px 0; color: #374151; font-size: 16px;">Your Login Credentials</h3>
+              <p style="margin: 8px 0; font-size: 14px;"><strong>Email:</strong> ${email}</p>
+              <p style="margin: 8px 0; font-size: 14px;"><strong>Temporary Password:</strong> <span style="background-color: #e5e7eb; padding: 3px 8px; border-radius: 3px; font-family: 'Courier New', monospace;">${password}</span></p>
+            </td>
+          </tr>
+        </table>
+        
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <a href="${loginUrl}" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: bold; font-size: 14px;">Access Your Account</a>
+            </td>
+          </tr>
+        </table>
+        
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; margin: 20px 0;">
+          <tr>
+            <td style="padding: 15px;">
+              <p style="margin: 0; color: #92400e; font-size: 14px;"><strong>Important:</strong> You must change your password when you first log in for security reasons.</p>
+            </td>
+          </tr>
+        </table>
+        
+        ${type === 'company' ? `
+        <p style="font-size: 14px; margin-top: 25px; color: #374151;"><strong>Next Steps:</strong></p>
+        <ol style="margin: 10px 0 0 0; padding-left: 20px; color: #374151; font-size: 14px;">
+          <li>Log in and change your password</li>
+          <li>Complete your company profile</li>
+          <li>Add riders to start accepting verification requests</li>
+        </ol>
+        ` : `
+        <p style="font-size: 14px; margin-top: 25px; color: #374151;"><strong>Next Steps:</strong></p>
+        <ol style="margin: 10px 0 0 0; padding-left: 20px; color: #374151; font-size: 14px;">
+          <li>Download the Zigo mobile app</li>
+          <li>Log in with your credentials</li>
+          <li>Complete your profile and start accepting tasks</li>
+        </ol>
+        `}
+        
+        <p style="color: #6b7280; font-size: 13px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          If you have any questions, please contact our support team at support@zigocheck.com
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+        <p style="color: #9ca3af; font-size: 12px; margin: 0 0 10px 0;">
+          This is an automated message from Zigo Verification Services.<br>
+          © ${new Date().getFullYear()} Zigo. All rights reserved.
+        </p>
+        <p style="color: #9ca3af; font-size: 11px; margin: 0;">
+          You received this email because an account was created for you.<br>
+          If you believe this was sent in error, please contact support immediately.
+        </p>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
     `;
@@ -274,38 +293,93 @@ If you didn't expect this email, please contact our support team.
   }> {
     this.logger.log(`Admin ${createdByAdminId} creating company: ${dto.name}`);
 
+    // Check if user already exists in Firebase Auth
+    let existingUser: admin.auth.UserRecord | null = null;
+    try {
+      existingUser = await admin.auth().getUserByEmail(dto.ownerEmail);
+      this.logger.log(`Found existing Firebase Auth user for email: ${dto.ownerEmail}`);
+      
+      // Check if this user already has a company
+      const existingCompany = await this.repository.getCompanyByOwnerId(existingUser.uid);
+      if (existingCompany) {
+        throw new ConflictException(
+          `A company already exists for this email (${dto.ownerEmail}). Company: ${existingCompany.name}. ` +
+          `If you need to resend credentials, use the "Resend Invite" option.`
+        );
+      }
+      
+      this.logger.log(`User exists but has no company. Will use existing auth user and create company record.`);
+    } catch (error) {
+      if (error.code !== 'auth/user-not-found') {
+        throw error;
+      }
+      // User doesn't exist, will create new one
+      this.logger.log(`No existing user found for ${dto.ownerEmail}, will create new auth user`);
+    }
+
     // Generate temporary password
     const temporaryPassword = this.generateTemporaryPassword();
+    
+    // Get or create Firebase Auth user
+    let firebaseUid: string;
+    if (existingUser) {
+      // Use existing user but update password and role
+      firebaseUid = existingUser.uid;
+      await admin.auth().updateUser(firebaseUid, {
+        password: temporaryPassword,
+        displayName: dto.ownerName,
+      });
+      await admin.auth().setCustomUserClaims(firebaseUid, {
+        role: UserRole.COMPANY,
+        companyName: dto.name,
+      });
+      this.logger.log(`Updated existing Firebase Auth user: ${firebaseUid}`);
+    } else {
+      // Create new Firebase Auth user
+      firebaseUid = await this.createFirebaseAuthUser(
+        dto.ownerEmail,
+        temporaryPassword,
+        dto.ownerName,
+        UserRole.COMPANY,
+        { companyName: dto.name },
+      );
+    }
 
-    // Create Firebase Auth user for company owner
-    const firebaseUid = await this.createFirebaseAuthUser(
-      dto.ownerEmail,
-      temporaryPassword,
-      dto.ownerName,
-      UserRole.COMPANY,
-      { companyName: dto.name },
-    );
-
-    // Create company in database
-    const company = await this.repository.createCompany({
-      ...dto,
-      ownerId: firebaseUid,
-      status: 'active',
-      isFirstLogin: true,
-      isVerified: false,
-      inviteSentAt: new Date(),
-      settings: {
-        autoAssignEnabled: false,
-        assignmentMethod: 'manual',
-        maxDistanceKm: 20,
-        maxActiveAssignments: 5,
-        requireBikeAssignment: true,
-        allowSelfAssign: true,
-        notifyOnNewRequest: true,
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as any);
+    // Create company in database with rollback on failure
+    let company: VerificationCompanyEntity;
+    try {
+      company = await this.repository.createCompany({
+        ...dto,
+        ownerId: firebaseUid,
+        status: 'active',
+        isFirstLogin: true,
+        isVerified: false,
+        inviteSentAt: new Date(),
+        settings: {
+          autoAssignEnabled: false,
+          assignmentMethod: 'manual',
+          maxDistanceKm: 20,
+          maxActiveAssignments: 5,
+          requireBikeAssignment: true,
+          allowSelfAssign: true,
+          notifyOnNewRequest: true,
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as any);
+    } catch (error) {
+      // Rollback: Delete the Firebase Auth user ONLY if we created a new one
+      if (!existingUser) {
+        this.logger.error(`Failed to save company to database, rolling back Firebase Auth user: ${error.message}`);
+        try {
+          await admin.auth().deleteUser(firebaseUid);
+          this.logger.log(`Rolled back Firebase Auth user: ${firebaseUid}`);
+        } catch (deleteError) {
+          this.logger.error(`Failed to rollback Firebase Auth user: ${deleteError.message}`);
+        }
+      }
+      throw error;
+    }
 
     // Send invite email
     let inviteSent = false;
@@ -318,8 +392,10 @@ If you didn't expect this email, please contact our support team.
         'company',
       );
       inviteSent = true;
+      this.logger.log(`✅ Invite email sent successfully to ${dto.ownerEmail}`);
     } catch (error) {
-      this.logger.warn(`Failed to send invite email: ${error.message}`);
+      this.logger.error(`❌ Failed to send invite email to ${dto.ownerEmail}: ${error.message}`);
+      this.logger.error(`Email error stack: ${error.stack}`);
     }
 
     this.logger.log(`✅ Company created: ${company.id} - ${company.name}`);

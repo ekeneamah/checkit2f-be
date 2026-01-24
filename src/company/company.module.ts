@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { FirebaseModule } from '../shared/config/firebase.module';
 import { ExternalServicesModule } from '../external-services/external-services.module';
+import { GeminiAIModule } from '../external-services/gemini-ai/gemini-ai.module';
 import {
   CompanyController,
   RiderController,
@@ -17,6 +18,7 @@ import {
   FleetService,
   AssignmentService,
   OnboardingService,
+  LocationDataService,
 } from './application/services';
 import { CompanyRepository } from './infrastructure/repositories';
 import { EmailService } from '../external-services/notifications/email/email.service';
@@ -26,6 +28,7 @@ import { EmailService } from '../external-services/notifications/email/email.ser
     FirebaseModule,
     ConfigModule,
     forwardRef(() => ExternalServicesModule),
+    GeminiAIModule,
   ],
   controllers: [
     CompanyController,
@@ -43,6 +46,7 @@ import { EmailService } from '../external-services/notifications/email/email.ser
     FleetService,
     AssignmentService,
     OnboardingService,
+    LocationDataService,
     EmailService,
   ],
   exports: [

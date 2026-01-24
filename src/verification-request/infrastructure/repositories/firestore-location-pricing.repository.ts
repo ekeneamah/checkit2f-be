@@ -22,11 +22,15 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
       
       const pricing: LocationPricing = {
         id,
-        city: data.city.trim(),
-        area: data.area?.trim() || null,
-        cityCost: data.cityCost,
-        areaCost: data.areaCost,
-        status: data.status || 'active',
+        state: data.state.trim(),
+        lga: data.lga.trim(),
+        locality: data.locality?.trim() || null,
+        basePrice: data.basePrice,
+        pricePerKm: data.pricePerKm,
+        minimumCharge: data.minimumCharge,
+        maximumCharge: data.maximumCharge,
+        surcharges: data.surcharges || [],
+        isActive: data.isActive !== undefined ? data.isActive : true,
         createdAt: now,
         updatedAt: now,
         description: data.description,
@@ -36,7 +40,7 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
 
       await this.firebaseService.set(this.collectionName, id, pricing);
       
-      this.logger.log(`Created location pricing for ${pricing.city}${pricing.area ? ` - ${pricing.area}` : ''}`);
+      this.logger.log(`Created location pricing for ${pricing.state} → ${pricing.lga}${pricing.locality ? ` → ${pricing.locality}` : ''}`);
       return pricing;
     } catch (error) {
       this.logger.error(`Failed to create location pricing: ${error.message}`);
@@ -44,17 +48,18 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
     }
   }
 
-  async findByLocationExact(city: string, area?: string | null): Promise<LocationPricing | null> {
+  async findByLocationExact(state: string, lga: string, locality?: string | null): Promise<LocationPricing | null> {
     try {
       const db = this.firebaseService.db;
       let query = db.collection(this.collectionName)
-        .where('city', '==', city.trim())
-        .where('status', '==', 'active');
+        .where('state', '==', state.trim())
+        .where('lga', '==', lga.trim())
+        .where('isActive', '==', true);
 
-      if (area) {
-        query = query.where('area', '==', area.trim());
+      if (locality) {
+        query = query.where('locality', '==', locality.trim());
       } else {
-        query = query.where('area', '==', null);
+        query = query.where('locality', '==', null);
       }
 
       const snapshot = await query.limit(1).get();
@@ -71,13 +76,14 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
     }
   }
 
-  async findByCityOnly(city: string): Promise<LocationPricing | null> {
+  async findByLGAOnly(state: string, lga: string): Promise<LocationPricing | null> {
     try {
       const db = this.firebaseService.db;
       const snapshot = await db.collection(this.collectionName)
-        .where('city', '==', city.trim())
-        .where('area', '==', null) // City-wide pricing
-        .where('status', '==', 'active')
+        .where('state', '==', state.trim())
+        .where('lga', '==', lga.trim())
+        .where('locality', '==', null) // LGA-wide pricing
+        .where('isActive', '==', true)
         .limit(1)
         .get();
 
@@ -88,7 +94,29 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
       const doc = snapshot.docs[0];
       return { id: doc.id, ...doc.data() } as LocationPricing;
     } catch (error) {
-      this.logger.error(`Failed to find pricing by city: ${error.message}`);
+      this.logger.error(`Failed to find pricing by LGA: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async findByStateOnly(state: string): Promise<LocationPricing | null> {
+    try {
+      const db = this.firebaseService.db;
+      const snapshot = await db.collection(this.collectionName)
+        .where('state', '==', state.trim())
+        .where('lga', '==', null) // State-wide pricing
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+
+      if (snapshot.empty) {
+        return null;
+      }
+
+      const doc = snapshot.docs[0];
+      return { id: doc.id, ...doc.data() } as LocationPricing;
+    } catch (error) {
+      this.logger.error(`Failed to find pricing by state: ${error.message}`);
       throw error;
     }
   }
@@ -168,39 +196,38 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
     }
   }
 
-  async findActiveByCityWithAreas(city: string): Promise<LocationPricing[]> {
+  async findActiveByLGAWithLocalities(state: string, lga: string): Promise<LocationPricing[]> {
     try {
       const db = this.firebaseService.db;
-      // Query without orderBy to avoid composite index requirement
       const snapshot = await db.collection(this.collectionName)
-        .where('city', '==', city.trim())
-        .where('status', '==', 'active')
+        .where('state', '==', state.trim())
+        .where('lga', '==', lga.trim())
+        .where('isActive', '==', true)
         .get();
 
-      // Sort in memory instead
       const results = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as LocationPricing));
       
       return results.sort((a, b) => {
-        const areaA = a.area || '';
-        const areaB = b.area || '';
-        return areaA.localeCompare(areaB);
+        const localityA = a.locality || '';
+        const localityB = b.locality || '';
+        return localityA.localeCompare(localityB);
       });
     } catch (error) {
-      this.logger.error(`Failed to find active pricing by city: ${error.message}`);
+      this.logger.error(`Failed to find active pricing by LGA: ${error.message}`);
       throw error;
     }
   }
 
-  async search(query: string, status?: string): Promise<LocationPricing[]> {
+  async search(query: string, isActive?: boolean): Promise<LocationPricing[]> {
     try {
       const db = this.firebaseService.db;
       let firestoreQuery: any = db.collection(this.collectionName);
 
-      if (status) {
-        firestoreQuery = firestoreQuery.where('status', '==', status);
+      if (isActive !== undefined) {
+        firestoreQuery = firestoreQuery.where('isActive', '==', isActive);
       }
 
       const snapshot = await firestoreQuery
@@ -210,8 +237,9 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
       const results = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as LocationPricing))
         .filter(pricing => 
-          pricing.city.toLowerCase().includes(query.toLowerCase()) ||
-          (pricing.area && pricing.area.toLowerCase().includes(query.toLowerCase()))
+          pricing.state.toLowerCase().includes(query.toLowerCase()) ||
+          pricing.lga.toLowerCase().includes(query.toLowerCase()) ||
+          (pricing.locality && pricing.locality.toLowerCase().includes(query.toLowerCase()))
         );
 
       return results;
@@ -221,24 +249,47 @@ export class FirestoreLocationPricingRepository implements ILocationPricingRepos
     }
   }
 
-  async findDistinctCities(): Promise<string[]> {
+  async findDistinctStates(): Promise<string[]> {
     try {
       const db = this.firebaseService.db;
       const snapshot = await db.collection(this.collectionName)
-        .where('status', '==', 'active')
+        .where('isActive', '==', true)
         .get();
 
-      const cities = new Set<string>();
+      const states = new Set<string>();
       snapshot.docs.forEach(doc => {
         const data = doc.data();
-        if (data.city) {
-          cities.add(data.city);
+        if (data.state) {
+          states.add(data.state);
         }
       });
 
-      return Array.from(cities).sort();
+      return Array.from(states).sort();
     } catch (error) {
-      this.logger.error(`Failed to find distinct cities: ${error.message}`);
+      this.logger.error(`Failed to find distinct states: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async findDistinctLGAsForState(state: string): Promise<string[]> {
+    try {
+      const db = this.firebaseService.db;
+      const snapshot = await db.collection(this.collectionName)
+        .where('state', '==', state.trim())
+        .where('isActive', '==', true)
+        .get();
+
+      const lgas = new Set<string>();
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.lga) {
+          lgas.add(data.lga);
+        }
+      });
+
+      return Array.from(lgas).sort();
+    } catch (error) {
+      this.logger.error(`Failed to find distinct LGAs: ${error.message}`);
       throw error;
     }
   }

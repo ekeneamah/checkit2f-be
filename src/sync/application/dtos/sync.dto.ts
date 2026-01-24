@@ -171,6 +171,7 @@ export class ProcessSyncQueueDto {
 
   @ApiPropertyOptional({ description: 'Maximum items to process', default: 50, maximum: 100 })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @Max(100)

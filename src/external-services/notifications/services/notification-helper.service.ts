@@ -51,8 +51,20 @@ export class NotificationHelperService {
    */
   async getAgentDetails(agentId: string): Promise<NotificationRecipient> {
     try {
-      // Try agents collection first
-      let agent = await this.firebaseService.findById('agents', agentId);
+      // Try companies collection first (for company assignments)
+      let agent = await this.firebaseService.findById('companies', agentId);
+      
+      if (agent) {
+        // It's a company
+        return {
+          email: agent.ownerEmail || agent.email || '',
+          name: agent.name || 'Company',
+          phone: agent.phone || agent.ownerPhone || undefined,
+        };
+      }
+      
+      // Try agents collection
+      agent = await this.firebaseService.findById('agents', agentId);
       
       // If not found in agents, try users collection
       if (!agent) {
@@ -60,7 +72,7 @@ export class NotificationHelperService {
       }
 
       if (!agent) {
-        this.logger.warn(`Agent not found: ${agentId}`);
+        this.logger.warn(`Agent/Company not found: ${agentId}`);
         return {
           email: '',
           name: 'Unknown Agent',

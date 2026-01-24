@@ -94,6 +94,15 @@ export class SearchResultDto {
   @ApiPropertyOptional({ description: 'Area/neighborhood extracted from address' })
   area?: string;
 
+  @ApiPropertyOptional({ description: 'State extracted from address', example: 'Rivers' })
+  state?: string;
+
+  @ApiPropertyOptional({ description: 'LGA extracted from address', example: 'Port Harcourt City' })
+  lga?: string;
+
+  @ApiPropertyOptional({ description: 'Locality extracted from address', example: 'Abuloma' })
+  locality?: string;
+
   @ApiProperty({ description: 'Latitude' })
   lat: number;
 
@@ -117,25 +126,41 @@ export class SearchResultDto {
 }
 
 export class PriceCalculationDto {
-  @ApiProperty({ description: 'City name', example: 'Lagos' })
-  city: string;
+  @ApiProperty({ description: 'State name', example: 'Rivers' })
+  state: string;
 
-  @ApiPropertyOptional({ description: 'Area/neighborhood name', example: 'Victoria Island' })
-  area?: string | null;
+  @ApiProperty({ description: 'LGA name', example: 'Port Harcourt' })
+  lga: string;
 
-  @ApiProperty({ description: 'Base cost for the city in Naira', example: 5000 })
-  cityCost: number;
+  @ApiPropertyOptional({ description: 'Locality name', example: 'Old GRA' })
+  locality?: string | null;
 
-  @ApiProperty({ description: 'Additional cost for the area in Naira', example: 2000 })
-  areaCost: number;
+  @ApiProperty({ description: 'Base price in Naira', example: 5000 })
+  basePrice: number;
 
-  @ApiProperty({ description: 'Total cost in Naira', example: 7000 })
-  totalCost: number;
+  @ApiProperty({ description: 'Price per kilometer in Naira', example: 200 })
+  pricePerKm: number;
+
+  @ApiProperty({ description: 'Distance in kilometers', example: 10 })
+  distance: number;
+
+  @ApiProperty({ description: 'Calculated price before surcharges in Naira', example: 7000 })
+  calculatedPrice: number;
+
+  @ApiPropertyOptional({ 
+    description: 'Applied surcharges',
+    type: 'array',
+    example: [{ type: 'weekend', value: 20, amount: 1400 }]
+  })
+  appliedSurcharges?: Array<{ type: string; value: number; amount: number }>;
+
+  @ApiProperty({ description: 'Final price including surcharges in Naira', example: 8400 })
+  finalPrice: number;
 
   @ApiProperty({ 
     description: 'Source of pricing calculation',
-    enum: ['exact_match', 'city_fallback', 'default'],
-    example: 'exact_match'
+    enum: ['locality_match', 'lga_match', 'state_match', 'default'],
+    example: 'locality_match'
   })
   pricingSource: string;
 

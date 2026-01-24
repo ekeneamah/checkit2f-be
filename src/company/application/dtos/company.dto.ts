@@ -17,9 +17,22 @@ import { Type } from 'class-transformer';
 // ============ SERVICE AREA ============
 
 export class ServiceAreaDto {
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Local Government Area (LGA)',
+    example: 'Port Harcourt'
+  })
   @IsString()
-  city: string;
+  lga: string;
+
+  @ApiPropertyOptional({
+    description: 'Specific localities/areas within the LGA. Empty/null = serve entire LGA',
+    example: ['Old GRA', 'New GRA', 'D-Line'],
+    type: [String]
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  localities?: string[];
 
   @ApiProperty()
   @IsString()
@@ -28,12 +41,6 @@ export class ServiceAreaDto {
   @ApiProperty()
   @IsString()
   country: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  lgas?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

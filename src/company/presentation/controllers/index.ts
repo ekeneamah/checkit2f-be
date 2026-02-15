@@ -4,3 +4,4 @@ export * from './fleet.controller';
 export * from './assignment.controller';
 export * from './admin-company.controller';
 export * from './company-auth.controller';
+export * from './partner-onboarding.controller';
